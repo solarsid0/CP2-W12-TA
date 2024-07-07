@@ -1,18 +1,20 @@
-/* 
-TO FIX:
-- save status (Accepted/Denied) in the csv file
-*/
 
 package MPHpages.HR_ManagerPortal;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import javax.swing.JTable;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -43,16 +45,41 @@ public class LeaveManagement extends javax.swing.JFrame {
         this.fullName = fullName; // Store full name
         this.employeeID = employeeID;
         this.userRole = userRole;
-        populateJTable();
-        resizeColumnWidths();
+
+    // Populate the table
+    populateJTable();
+    
+    // Adjust column widths
+    resizeColumnWidths();
         
     }
+    
+    // Method to calculate leave days between start and end dates
+        public int calculateLeaveDays(String startDateStr, String endDateStr) {
+            DateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy"); // Corrected date format
+            int leaveDays = 0;
 
-    private LeaveManagement(Object object) {
+            try {
+                Date startDate = dateFormat.parse(startDateStr);
+                Date endDate = dateFormat.parse(endDateStr);
+
+                // Calculate leave days (assuming 1 day = 24 hours)
+                long diffMilliseconds = endDate.getTime() - startDate.getTime();
+                long diffDays = diffMilliseconds / (24 * 60 * 60 * 1000); // Convert milliseconds to days
+                leaveDays = (int) diffDays + 1; // Include both start and end days
+            } catch (ParseException e) {
+                // Handle parsing exception
+                e.printStackTrace(); // Or log the error
+            }
+
+            return leaveDays;
+}
+    
+    private LeaveManagement() {
         throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
     }
-    
 
+    // Method to populate JTable with data from CSV
     private void populateJTable() {
         DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
         model.setRowCount(0);
@@ -63,20 +90,22 @@ public class LeaveManagement extends javax.swing.JFrame {
             if (line != null) {
                 while ((line = reader.readLine()) != null) {
                     String[] data = parseCSVLine(line);
-                    if (data.length >= 12) {
+                    if (data.length >= 14) {
                         model.addRow(new Object[]{
                             data[0],  // Date
                             data[1],  // EID
                             data[2],  // First Name
                             data[3],  // Last Name
                             data[4],  // Position
-                            data[5],  // Supervisor
-                            data[6],  // TOP
-                            data[7],  // Note
-                            data[8],  // Start
-                            data[9],  // End
-                            data[10], // Status
-                            data[11]  // Remaining
+                            data[5],  // Employment Status
+                            data[6],  // Supervisor
+                            data[7],  // TOP
+                            data[8],  // Note
+                            data[9],  // Start
+                            data[10], // End
+                            data[11], // Leave Status
+                            data[12], // Remaining Vacation Leave
+                            data[13]  // Remaining Sick Leave
                         });
                     } else {
                         System.out.println("Skipping malformed line: " + line);
@@ -87,18 +116,19 @@ public class LeaveManagement extends javax.swing.JFrame {
             e.printStackTrace();
         }
 
-        // Sort rows based on the "Status" column
+       // Sort rows based on the "Leave Status" column
         TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
         jTable1.setRowSorter(sorter);
         List<RowSorter.SortKey> sortKeys = new ArrayList<>();
-        sortKeys.add(new RowSorter.SortKey(10, SortOrder.ASCENDING)); // Sort by Status column
+        sortKeys.add(new RowSorter.SortKey(11, SortOrder.ASCENDING)); // Sort by "Leave Status" column
         sorter.setSortKeys(sortKeys);
 
-        // Set custom cell renderer for the "Status" column
+        // Set custom cell renderer for the "Leave Status" column
         TableColumnModel columnModel = jTable1.getColumnModel();
-        columnModel.getColumn(10).setCellRenderer(new StatusCellRenderer());
+        columnModel.getColumn(11).setCellRenderer(new StatusCellRenderer());
     }
 
+    // Method to parse CSV line into array of fields
     private String[] parseCSVLine(String line) {
         String regex = ",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)";
         String[] fields = line.split(regex);
@@ -108,74 +138,91 @@ public class LeaveManagement extends javax.swing.JFrame {
         return fields;
     }
 
-    // Custom cell renderer for the "Status" column
+    // Custom cell renderer for the "Leave Status" column
     private class StatusCellRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
             Component cell = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             String status = (String) value;
             switch (status) {
-                case "Pending" -> cell.setBackground(Color.YELLOW);
-                case "Accepted" -> cell.setBackground(Color.GREEN);
-                case "Denied" -> cell.setBackground(Color.RED);
-                default -> cell.setBackground(table.getBackground());
+                case "Pending":
+                    cell.setBackground(Color.YELLOW);
+                    break;
+                case "Accepted":
+                    cell.setBackground(Color.GREEN);
+                    break;
+                case "Denied":
+                    cell.setBackground(Color.RED);
+                    break;
+                default:
+                    cell.setBackground(table.getBackground());
+                    break;
             }
             return cell;
         }
     }
 
+    // Method to resize column widths based on content
     private void resizeColumnWidths() {
         TableColumnModel columnModel = jTable1.getColumnModel();
+        int totalWidth = 0;
+
         for (int column = 0; column < jTable1.getColumnCount(); column++) {
-            int width = 50; // Minimum width
+            int width = 50; // Minimum width for safety
             TableCellRenderer headerRenderer = jTable1.getTableHeader().getDefaultRenderer();
             Component headerComp = headerRenderer.getTableCellRendererComponent(jTable1, columnModel.getColumn(column).getHeaderValue(), false, false, 0, column);
             width = Math.max(headerComp.getPreferredSize().width, width);
+
             for (int row = 0; row < jTable1.getRowCount(); row++) {
                 TableCellRenderer renderer = jTable1.getCellRenderer(row, column);
                 Component comp = jTable1.prepareRenderer(renderer, row, column);
                 width = Math.max(comp.getPreferredSize().width + 1, width);
             }
+
             columnModel.getColumn(column).setPreferredWidth(width);
+            totalWidth += width; // Sum up the total width
         }
-        // Set the preferred size of the JTable
-        jTable1.setPreferredScrollableViewportSize(jTable1.getPreferredSize());
-        jScrollPane1.setPreferredSize(jTable1.getPreferredScrollableViewportSize());
+
+        // Set a preferred size that forces horizontal scrolling if necessary
+        Dimension viewportSize = jScrollPane1.getViewport().getSize();
+        int preferredWidth = Math.max(viewportSize.width, totalWidth);
+        jTable1.setPreferredScrollableViewportSize(new Dimension(preferredWidth, jTable1.getPreferredScrollableViewportSize().height));
     }
-    
-    //Method to read CSV into list of lists
-    private List<String[]> readCSV(String filePath) {
-        List<String[]> csvData = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                csvData.add(parseCSVLine(line));
+
+    // Method to update CSV file with current table data including leave credits
+private void updateCSVFile() {
+    DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
+    File file = new File("src/CSV/Leave Requests DB.csv");
+
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+        // Write the header line
+        writer.write("Date,EID,First Name,Last Name,Position,Employment Status,Supervisor,TOP,Note,Start,End,Leave Status,Remaining Vacation Leave,Remaining Sick Leave");
+        writer.newLine();
+
+        // Write the table data
+        for (int i = 0; i < model.getRowCount(); i++) {
+            StringBuilder line = new StringBuilder();
+            for (int j = 0; j < model.getColumnCount(); j++) {
+                String value = model.getValueAt(i, j).toString();
+                // Escape commas and quotes in the value
+                value = value.replace("\"", "\"\"");
+                if (value.contains(",") || value.contains("\"")) {
+                    value = "\"" + value + "\"";
+                }
+                line.append(value);
+                if (j < model.getColumnCount() - 1) {
+                    line.append(",");
+                }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+            writer.write(line.toString());
+            writer.newLine();
         }
-        return csvData;
+    } catch (IOException e) {
+        e.printStackTrace();
+        JOptionPane.showMessageDialog(this, "Error updating CSV file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
     }
+}
     
-    //Method to write list of lists to CSV
-    private void writeCSV(String filePath, List<String[]> data) {
-        try (PrintWriter writer = new PrintWriter(new File(filePath))) {
-            for (String[] row : data) {
-                writer.println(String.join(",", row));
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-    
-    //Method to update status and save to CSV
-    private void updateCSV(String filePath, int rowIndex, String newStatus) {
-        List<String[]> csvData = readCSV(filePath);
-        if (rowIndex < csvData.size()) {
-            csvData.get(rowIndex)[10] = newStatus;
-            writeCSV(filePath, csvData);
-        }
-    }
     @SuppressWarnings("unchecked")
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
@@ -199,6 +246,7 @@ public class LeaveManagement extends javax.swing.JFrame {
 
         jLabel1.setFont(new java.awt.Font("Segoe UI", 1, 24)); // NOI18N
         jLabel1.setForeground(new java.awt.Color(255, 255, 255));
+        jLabel1.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
         jLabel1.setText("LEAVE MANAGEMENT");
 
         backbuttonreqleavePB.setBackground(new java.awt.Color(204, 0, 0));
@@ -218,9 +266,9 @@ public class LeaveManagement extends javax.swing.JFrame {
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addGap(34, 34, 34)
                 .addComponent(backbuttonreqleavePB, javax.swing.GroupLayout.PREFERRED_SIZE, 93, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(431, 431, 431)
-                .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 268, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addGap(298, 298, 298)
+                .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 0, Short.MAX_VALUE)
+                .addGap(423, 423, 423))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -228,8 +276,10 @@ public class LeaveManagement extends javax.swing.JFrame {
                 .addGap(31, 31, 31)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
                     .addComponent(backbuttonreqleavePB, javax.swing.GroupLayout.PREFERRED_SIZE, 34, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel1))
-                .addContainerGap(33, Short.MAX_VALUE))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGap(2, 2, 2)
+                        .addComponent(jLabel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
+                .addGap(33, 33, 33))
         );
 
         jPanel2.setBackground(new java.awt.Color(153, 153, 153));
@@ -277,20 +327,20 @@ public class LeaveManagement extends javax.swing.JFrame {
 
         jTable1.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null}
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null}
             },
             new String [] {
-                "Date", "EID", "First Name", "Last Name", "Position", "Supervisor", "TOP", "Note", "Start", "End", "Status", "Remaining"
+                "Date", "EID", "First Name", "Last Name", "Position", "Emp Status", "Supervisor", "TOP", "Note", "Start", "End", "Leave Status", "VL Remaining", "SL Remaining"
             }
         ) {
             Class[] types = new Class [] {
-                java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.Object.class, java.lang.Object.class, java.lang.Object.class, java.lang.Integer.class
+                java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.Object.class, java.lang.Object.class, java.lang.Object.class, java.lang.Integer.class, java.lang.Integer.class
             };
             boolean[] canEdit = new boolean [] {
-                false, false, false, false, false, false, false, false, false, false, false, false
+                false, false, false, false, false, false, false, false, false, false, false, false, false, false
             };
 
             public Class getColumnClass(int columnIndex) {
@@ -319,12 +369,12 @@ public class LeaveManagement extends javax.swing.JFrame {
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addComponent(jTextField1)
                     .addComponent(jComboBox1, 0, 112, Short.MAX_VALUE))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 780, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 528, Short.MAX_VALUE)
                 .addComponent(jButton1, javax.swing.GroupLayout.PREFERRED_SIZE, 93, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addComponent(jButton2, javax.swing.GroupLayout.PREFERRED_SIZE, 93, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(28, 28, 28))
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
+            .addGroup(jPanel2Layout.createSequentialGroup()
                 .addContainerGap()
                 .addComponent(jScrollPane1)
                 .addContainerGap())
@@ -332,9 +382,9 @@ public class LeaveManagement extends javax.swing.JFrame {
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel2Layout.createSequentialGroup()
-                .addGap(21, 21, 21)
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 273, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(18, 18, 18)
+                .addContainerGap(21, Short.MAX_VALUE)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 285, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(jPanel2Layout.createSequentialGroup()
                         .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
@@ -347,7 +397,7 @@ public class LeaveManagement extends javax.swing.JFrame {
                     .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                         .addComponent(jButton1, javax.swing.GroupLayout.PREFERRED_SIZE, 31, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addComponent(jButton2, javax.swing.GroupLayout.PREFERRED_SIZE, 31, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                .addContainerGap(17, Short.MAX_VALUE))
+                .addGap(17, 17, 17))
         );
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -396,7 +446,7 @@ public class LeaveManagement extends javax.swing.JFrame {
     } else {
         // Create a row filter to display only rows with the selected status
         TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>((DefaultTableModel) jTable1.getModel());
-        RowFilter<Object, Object> filter = RowFilter.regexFilter(selectedStatus, 10); // 10 is the column index of "Status"
+        RowFilter<Object, Object> filter = RowFilter.regexFilter(selectedStatus, 11); // 11 is the column index of "Status"
         sorter.setRowFilter(filter);
         jTable1.setRowSorter(sorter);
     }
@@ -405,28 +455,44 @@ public class LeaveManagement extends javax.swing.JFrame {
 
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
       // Accept button action performed
-    int selectedRow = jTable1.getSelectedRow();
+       int selectedRow = jTable1.getSelectedRow();
     if (selectedRow != -1) {
         DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
         int modelRow = jTable1.convertRowIndexToModel(selectedRow);
-        // Check if the selected row has a "Pending" status
-        if ("Pending".equals(model.getValueAt(modelRow, 10))) {
-            // Change the status to "Accepted"
-            model.setValueAt("Accepted", modelRow, 10); // 10 is the column index of "Status"
-            
-            // Decrease the remaining leave days by 1
-            int remaining = Integer.parseInt(model.getValueAt(modelRow, 11).toString()); // 11 is the column index of "Remaining"
-            if (remaining > 0) {
-                model.setValueAt(remaining - 1, modelRow, 11);
+        if ("Pending".equals(model.getValueAt(modelRow, 11))) { // 11 is the column index of "Leave Status"
+            String typeOfLeave = model.getValueAt(modelRow, 7).toString(); // 7 is the column index of "TOP"
+            String startDate = model.getValueAt(modelRow, 9).toString(); // 9 is the column index of "Start"
+            String endDate = model.getValueAt(modelRow, 10).toString(); // 10 is the column index of "End"
+            int leaveDays = calculateLeaveDays(startDate, endDate);
+
+            if (typeOfLeave.equalsIgnoreCase("Vacation Leave")) {
+                int remainingVL = Integer.parseInt(model.getValueAt(modelRow, 12).toString()); // 12 is the column index of "Remaining Vacation Leave"
+                if (remainingVL >= leaveDays) {
+                    model.setValueAt("Accepted", modelRow, 11); // Update leave status to "Accepted"
+                    model.setValueAt(remainingVL - leaveDays, modelRow, 12); // Deduct vacation leave days in model
+                    updateCSVFile(); // Update CSV file with updated model
+                } else {
+                    JOptionPane.showMessageDialog(this, "Insufficient Vacation Leave credits.", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            } else if (typeOfLeave.equalsIgnoreCase("Sick Leave")) {
+                int remainingSL = Integer.parseInt(model.getValueAt(modelRow, 13).toString()); // 13 is the column index of "Remaining Sick Leave"
+                if (remainingSL >= leaveDays) {
+                    model.setValueAt("Accepted", modelRow, 11); // Update leave status to "Accepted"
+                    model.setValueAt(remainingSL - leaveDays, modelRow, 13); // Deduct sick leave days in model
+                    updateCSVFile(); // Update CSV file with updated model
+                } else {
+                    JOptionPane.showMessageDialog(this, "Insufficient Sick Leave credits.", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+            } else if (typeOfLeave.equalsIgnoreCase("Maternity Leave") || typeOfLeave.equalsIgnoreCase("Paternity Leave")) {
+                model.setValueAt("Accepted", modelRow, 11); // Update leave status to "Accepted"
+                updateCSVFile(); // Update CSV file with updated model
             }
-             updateCSV("src/CSV/Leave Requests DB.csv", modelRow, "Accepted");
-        
         } else {
-            // Display error message if the selected row does not have a "Pending" status
             JOptionPane.showMessageDialog(this, "Status cannot be changed. Only 'Pending' requests can be accepted or denied.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     } else {
-        // Display error message if no row is selected
         JOptionPane.showMessageDialog(this, "Please select a row to change its status.", "Error", JOptionPane.ERROR_MESSAGE);
     }
     }//GEN-LAST:event_jButton1ActionPerformed
@@ -438,10 +504,10 @@ public class LeaveManagement extends javax.swing.JFrame {
         DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
         int modelRow = jTable1.convertRowIndexToModel(selectedRow);
         // Check if the selected row has a "Pending" status
-        if ("Pending".equals(model.getValueAt(modelRow, 10))) {
+        if ("Pending".equals(model.getValueAt(modelRow, 11))) {
             // Change the status to "Denied"
-            model.setValueAt("Denied", modelRow, 10); // 10 is the column index of "Status"
-            updateCSV("src/CSV/Leave Requests DB.csv", modelRow, "Denied");
+            model.setValueAt("Denied", modelRow, 11); // 11 is the column index of Leave "Status"
+        updateCSVFile();
         } else {
             // Display error message if the selected row does not have a "Pending" status
             JOptionPane.showMessageDialog(this, "Status cannot be changed. Only 'Pending' requests can be accepted or denied.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -493,7 +559,7 @@ public class LeaveManagement extends javax.swing.JFrame {
 
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(() -> {
-            new LeaveManagement(null).setVisible(true);
+            new LeaveManagement().setVisible(true);
         });
     }
 

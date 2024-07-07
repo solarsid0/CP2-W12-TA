@@ -56,9 +56,9 @@
               <Group type="102" alignment="0" attributes="0">
                   <EmptySpace min="-2" pref="34" max="-2" attributes="0"/>
                   <Component id="backbuttonreqleavePB" min="-2" pref="93" max="-2" attributes="0"/>
-                  <EmptySpace min="-2" pref="431" max="-2" attributes="0"/>
-                  <Component id="jLabel1" min="-2" pref="268" max="-2" attributes="0"/>
-                  <EmptySpace max="32767" attributes="0"/>
+                  <EmptySpace min="-2" pref="298" max="-2" attributes="0"/>
+                  <Component id="jLabel1" pref="0" max="32767" attributes="0"/>
+                  <EmptySpace min="-2" pref="423" max="-2" attributes="0"/>
               </Group>
           </Group>
         </DimensionLayout>
@@ -68,9 +68,12 @@
                   <EmptySpace min="-2" pref="31" max="-2" attributes="0"/>
                   <Group type="103" groupAlignment="1" attributes="0">
                       <Component id="backbuttonreqleavePB" min="-2" pref="34" max="-2" attributes="0"/>
-                      <Component id="jLabel1" min="-2" max="-2" attributes="0"/>
+                      <Group type="102" alignment="1" attributes="0">
+                          <EmptySpace min="2" pref="2" max="-2" attributes="0"/>
+                          <Component id="jLabel1" max="32767" attributes="0"/>
+                      </Group>
                   </Group>
-                  <EmptySpace pref="33" max="32767" attributes="0"/>
+                  <EmptySpace min="-2" pref="33" max="-2" attributes="0"/>
               </Group>
           </Group>
         </DimensionLayout>
@@ -84,6 +87,7 @@
             <Property name="foreground" type="java.awt.Color" editor="org.netbeans.beaninfo.editors.ColorEditor">
               <Color blue="ff" green="ff" red="ff" type="rgb"/>
             </Property>
+            <Property name="horizontalAlignment" type="int" value="0"/>
             <Property name="text" type="java.lang.String" value="LEAVE MANAGEMENT"/>
           </Properties>
         </Component>
@@ -127,13 +131,13 @@
                       <Component id="jTextField1" max="32767" attributes="0"/>
                       <Component id="jComboBox1" pref="112" max="32767" attributes="0"/>
                   </Group>
-                  <EmptySpace pref="780" max="32767" attributes="0"/>
+                  <EmptySpace pref="528" max="32767" attributes="0"/>
                   <Component id="jButton1" min="-2" pref="93" max="-2" attributes="0"/>
                   <EmptySpace type="unrelated" max="-2" attributes="0"/>
                   <Component id="jButton2" min="-2" pref="93" max="-2" attributes="0"/>
                   <EmptySpace min="-2" pref="28" max="-2" attributes="0"/>
               </Group>
-              <Group type="102" alignment="1" attributes="0">
+              <Group type="102" alignment="0" attributes="0">
                   <EmptySpace max="-2" attributes="0"/>
                   <Component id="jScrollPane1" max="32767" attributes="0"/>
                   <EmptySpace max="-2" attributes="0"/>
@@ -142,10 +146,10 @@
         </DimensionLayout>
         <DimensionLayout dim="1">
           <Group type="103" groupAlignment="0" attributes="0">
-              <Group type="102" attributes="0">
-                  <EmptySpace min="-2" pref="21" max="-2" attributes="0"/>
-                  <Component id="jScrollPane1" min="-2" pref="273" max="-2" attributes="0"/>
-                  <EmptySpace type="separate" max="-2" attributes="0"/>
+              <Group type="102" alignment="0" attributes="0">
+                  <EmptySpace pref="21" max="32767" attributes="0"/>
+                  <Component id="jScrollPane1" min="-2" pref="285" max="-2" attributes="0"/>
+                  <EmptySpace max="-2" attributes="0"/>
                   <Group type="103" groupAlignment="0" attributes="0">
                       <Group type="102" attributes="0">
                           <Group type="103" groupAlignment="3" attributes="0">
@@ -163,7 +167,7 @@
                           <Component id="jButton2" alignment="3" min="-2" pref="31" max="-2" attributes="0"/>
                       </Group>
                   </Group>
-                  <EmptySpace pref="17" max="32767" attributes="0"/>
+                  <EmptySpace min="-2" pref="17" max="-2" attributes="0"/>
               </Group>
           </Group>
         </DimensionLayout>
@@ -253,25 +257,37 @@
             <Component class="javax.swing.JTable" name="jTable1">
               <Properties>
                 <Property name="model" type="javax.swing.table.TableModel" editor="org.netbeans.modules.form.editors2.TableModelEditor">
-                  <Table columnCount="12" rowCount="4">
+                  <Table columnCount="14" rowCount="4">
                     <Column editable="false" title="Date" type="java.lang.String"/>
                     <Column editable="false" title="EID" type="java.lang.String"/>
                     <Column editable="false" title="First Name" type="java.lang.String"/>
                     <Column editable="false" title="Last Name" type="java.lang.String"/>
                     <Column editable="false" title="Position" type="java.lang.String"/>
+                    <Column editable="false" title="Emp Status" type="java.lang.String"/>
                     <Column editable="false" title="Supervisor" type="java.lang.String"/>
                     <Column editable="false" title="TOP" type="java.lang.String"/>
                     <Column editable="false" title="Note" type="java.lang.String"/>
                     <Column editable="false" title="Start" type="java.lang.Object"/>
                     <Column editable="false" title="End" type="java.lang.Object"/>
-                    <Column editable="false" title="Status" type="java.lang.Object"/>
-                    <Column editable="false" title="Remaining" type="java.lang.Integer"/>
+                    <Column editable="false" title="Leave Status" type="java.lang.Object"/>
+                    <Column editable="false" title="VL Remaining" type="java.lang.Integer"/>
+                    <Column editable="false" title="SL Remaining" type="java.lang.Integer"/>
                   </Table>
                 </Property>
                 <Property name="autoResizeMode" type="int" value="0"/>
                 <Property name="autoscrolls" type="boolean" value="false"/>
                 <Property name="columnModel" type="javax.swing.table.TableColumnModel" editor="org.netbeans.modules.form.editors2.TableColumnModelEditor">
                   <TableColumnModel selectionModel="0">
+                    <Column maxWidth="-1" minWidth="-1" prefWidth="-1" resizable="true">
+                      <Title/>
+                      <Editor/>
+                      <Renderer/>
+                    </Column>
+                    <Column maxWidth="-1" minWidth="-1" prefWidth="-1" resizable="true">
+                      <Title/>
+                      <Editor/>
+                      <Renderer/>
+                    </Column>
                     <Column maxWidth="-1" minWidth="-1" prefWidth="-1" resizable="true">
                       <Title/>
                       <Editor/>

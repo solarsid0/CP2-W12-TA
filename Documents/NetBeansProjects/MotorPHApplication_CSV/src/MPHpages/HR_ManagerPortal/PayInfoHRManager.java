@@ -6,6 +6,9 @@ import com.itextpdf.text.DocumentException;
 import com.itextpdf.text.Font;
 import com.itextpdf.text.Paragraph;
 import com.itextpdf.text.pdf.PdfWriter;
+import com.itextpdf.text.Image;
+import com.itextpdf.text.Element;
+import com.itextpdf.text.pdf.*;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -45,7 +48,7 @@ public class PayInfoHRManager extends javax.swing.JFrame {
     private PayInfoHRManager(Object object) {
         throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
     }
-    
+ 
     private void initializeTable() {
         tableModel = new DefaultTableModel();
         empinfotable.setModel(tableModel);
@@ -128,61 +131,96 @@ public class PayInfoHRManager extends javax.swing.JFrame {
         Document document = new Document();
 
         try {
-            JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setDialogTitle("Save Payslip");
-            int userSelection = fileChooser.showSaveDialog(this);
+            if (empinfotable.getRowCount() > 0) {
+                int row = empinfotable.getSelectedRow() == -1 ? 0 : empinfotable.getSelectedRow();
 
-            if (userSelection == JFileChooser.APPROVE_OPTION) {
-                String filePath = fileChooser.getSelectedFile().getAbsolutePath();
+                String empID = empinfotable.getValueAt(row, 0).toString();
+                String month = empinfotable.getValueAt(row, 11).toString();
+                String year = empinfotable.getValueAt(row, 12).toString();
 
-                PdfWriter.getInstance(document, new FileOutputStream(filePath));
-                document.open();
+                String defaultFileName = "Payslip_" + empID + "_" + month + "_" + year + ".pdf";
 
-                Paragraph title = new Paragraph("Payslip Information", new Font(Font.FontFamily.HELVETICA, 18, Font.BOLD));
-                title.setAlignment(Paragraph.ALIGN_CENTER);
-                document.add(title);
-                document.add(new Paragraph("\n"));
+                JFileChooser fileChooser = new JFileChooser();
+                fileChooser.setDialogTitle("Save Payslip");
+                fileChooser.setSelectedFile(new java.io.File(defaultFileName));
+                int userSelection = fileChooser.showSaveDialog(this);
 
-                if (empinfotable.getRowCount() > 0) {
-                    int row = empinfotable.getSelectedRow() == -1 ? 0 : empinfotable.getSelectedRow();
+                if (userSelection == JFileChooser.APPROVE_OPTION) {
+                    String filePath = fileChooser.getSelectedFile().getAbsolutePath();
+                    if (!filePath.endsWith(".pdf")) {
+                        filePath += ".pdf";
+                    }
 
-                    String empID = empinfotable.getValueAt(row, 0).toString();
+                    PdfWriter.getInstance(document, new FileOutputStream(filePath));
+                    document.open();
+                
+                    // Add logo and header text
+                    PdfPTable headerTable = new PdfPTable(2);
+                    headerTable.setWidthPercentage(100);
+                    headerTable.setWidths(new int[]{1, 4}); // Adjust the width of the columns
+
+                    Image logo = Image.getInstance(getClass().getResource("/media/MPH LOGO 200 X 112.png"));
+                    logo.scaleToFit(90, 90); // Adjust the size of the logo
+                    PdfPCell logoCell = new PdfPCell(logo);
+                    logoCell.setBorder(PdfPCell.NO_BORDER);
+                    headerTable.addCell(logoCell);
+
+                    PdfPCell textCell = new PdfPCell(new Paragraph("MotorPH - Country's Top Motorcycle Online Dealership", new Font(Font.FontFamily.HELVETICA, 10, Font.BOLDITALIC)));
+                    textCell.setVerticalAlignment(Element.ALIGN_CENTER);
+                    textCell.setBorder(PdfPCell.NO_BORDER);
+                    headerTable.addCell(textCell);
+
+                    document.add(headerTable);
+                    document.add(new Paragraph("\n"));
+                    document.add(new Paragraph("=========================================================================="));
+                    document.add(new Paragraph("\n"));
+
+                    // Title
+                    Paragraph title = new Paragraph("Payslip Information", new Font(Font.FontFamily.HELVETICA, 9, Font.BOLD));
+                    title.setAlignment(Paragraph.ALIGN_CENTER);
+                    document.add(title);
+                    document.add(new Paragraph("\n"));
+
+                    // Employee Details
                     String lastName = empinfotable.getValueAt(row, 1).toString();
                     String firstName = empinfotable.getValueAt(row, 2).toString();
                     String supervisor = empinfotable.getValueAt(row, 3).toString();
 
-                    document.add(new Paragraph("Employee ID: " + empID, new Font(Font.FontFamily.HELVETICA, 10)));
-                    document.add(new Paragraph("Last Name: " + lastName, new Font(Font.FontFamily.HELVETICA, 10)));
-                    document.add(new Paragraph("First Name: " + firstName, new Font(Font.FontFamily.HELVETICA, 10)));
-                    document.add(new Paragraph("Supervisor: " + supervisor, new Font(Font.FontFamily.HELVETICA, 10)));
+                    document.add(new Paragraph("Employee ID: " + empID, new Font(Font.FontFamily.HELVETICA, 8)));
+                    document.add(new Paragraph("Last Name: " + lastName, new Font(Font.FontFamily.HELVETICA, 8)));
+                    document.add(new Paragraph("First Name: " + firstName, new Font(Font.FontFamily.HELVETICA, 8)));
+                    document.add(new Paragraph("Supervisor: " + supervisor, new Font(Font.FontFamily.HELVETICA, 8)));
                     document.add(new Paragraph("\n"));
 
-                    document.add(new Paragraph("---Payslip Information---", new Font(Font.FontFamily.HELVETICA, 14, Font.BOLD)));
-                    document.add(new Paragraph("Total Allowance: " + empinfotable.getValueAt(row, 4).toString(), new Font(Font.FontFamily.HELVETICA, 10)));
-                    document.add(new Paragraph("Gross Pay: " + empinfotable.getValueAt(row, 5).toString(), new Font(Font.FontFamily.HELVETICA, 10)));
-                    document.add(new Paragraph("Net Pay: " + empinfotable.getValueAt(row, 6).toString(), new Font(Font.FontFamily.HELVETICA, 10)));
+                    // Payslip Information
+                    document.add(new Paragraph("---Payslip Information---", new Font(Font.FontFamily.HELVETICA, 9, Font.BOLD)));
+                    document.add(new Paragraph("Total Allowance: " + empinfotable.getValueAt(row, 4).toString(), new Font(Font.FontFamily.HELVETICA, 8)));
+                    document.add(new Paragraph("Gross Pay: " + empinfotable.getValueAt(row, 5).toString(), new Font(Font.FontFamily.HELVETICA, 8)));
+                    document.add(new Paragraph("Net Pay: " + empinfotable.getValueAt(row, 6).toString(), new Font(Font.FontFamily.HELVETICA, 8)));
                     document.add(new Paragraph("\n"));
 
-                    document.add(new Paragraph("---Contributions---", new Font(Font.FontFamily.HELVETICA, 14, Font.BOLD)));
-                    document.add(new Paragraph("SSS Contribution: " + empinfotable.getValueAt(row, 7).toString(), new Font(Font.FontFamily.HELVETICA, 10)));
-                    document.add(new Paragraph("HMO Contribution: " + empinfotable.getValueAt(row, 8).toString(), new Font(Font.FontFamily.HELVETICA, 10)));
-                    document.add(new Paragraph("Pagibig Contribution: " + empinfotable.getValueAt(row, 9).toString(), new Font(Font.FontFamily.HELVETICA, 10)));
+                    // Contributions
+                    document.add(new Paragraph("---Contributions---", new Font(Font.FontFamily.HELVETICA, 9, Font.BOLD)));
+                    document.add(new Paragraph("SSS Contribution: " + empinfotable.getValueAt(row, 7).toString(), new Font(Font.FontFamily.HELVETICA, 8)));
+                    document.add(new Paragraph("HMO Contribution: " + empinfotable.getValueAt(row, 8).toString(), new Font(Font.FontFamily.HELVETICA, 8)));
+                    document.add(new Paragraph("Pagibig Contribution: " + empinfotable.getValueAt(row, 9).toString(), new Font(Font.FontFamily.HELVETICA, 8)));
                     document.add(new Paragraph("\n"));
 
-                    document.add(new Paragraph("Taxable Income: " + empinfotable.getValueAt(row, 10).toString(), new Font(Font.FontFamily.HELVETICA, 10)));
+                    // Taxable Income
+                    document.add(new Paragraph("Taxable Income: " + empinfotable.getValueAt(row, 10).toString(), new Font(Font.FontFamily.HELVETICA, 9)));
                     document.add(new Paragraph("\n"));
 
-                    document.add(new Paragraph("---Covers the following month and year---", new Font(Font.FontFamily.HELVETICA, 14, Font.BOLD)));
-                    document.add(new Paragraph("Month: " + empinfotable.getValueAt(row, 11).toString(), new Font(Font.FontFamily.HELVETICA, 10)));
-                    document.add(new Paragraph("Year: " + empinfotable.getValueAt(row, 12).toString(), new Font(Font.FontFamily.HELVETICA, 10)));
+                    // Month and Year
+                    document.add(new Paragraph("---Covers the following month and year---", new Font(Font.FontFamily.HELVETICA, 8, Font.BOLD)));
+                    document.add(new Paragraph("Month: " + month, new Font(Font.FontFamily.HELVETICA, 8)));
+                    document.add(new Paragraph("Year: " + year, new Font(Font.FontFamily.HELVETICA, 8)));
+
+                    document.close();
+
+                    JOptionPane.showMessageDialog(this, "Payslip saved successfully!");
                 }
-
-                document.close();
-
-                JOptionPane.showMessageDialog(this, "Payslip saved successfully!");
             }
-
-        } catch (IOException | DocumentException e) {
+        } catch (DocumentException | IOException e) {
             e.printStackTrace();
         }
     }

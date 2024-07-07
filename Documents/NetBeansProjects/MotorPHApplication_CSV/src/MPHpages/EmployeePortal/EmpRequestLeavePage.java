@@ -1,7 +1,10 @@
 /*
 NEW UPDATES
-- Added prompt for consumed leave (15 leaves per year ; not sure if I'll make a leave balance restriction per type of leave as it might cause us to add more columns to show remaining leaves per type of leave)
-- Submit leave request (no edit)
+- Changed Employee Data csv file to : MotorPH Employee Data UP.csv
+- Added restriction if leave credits will be consumed. 
+Regular : entitled for 20 vacation leaves and 10 sick leaves per year
+Probationary: entitled for 17 vacation leaves and 10 sick leaves
+- Submit leave request (uneditable once submitted but can be cancelled if status is still "Pending")
 - Automatically fills in emp id (uneditable), first name (uneditable, last name (uneditable, position, and imemdiate supervisor fields
 - Has current time and date
 - Has duplicate handling for same exact entries
@@ -25,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -111,7 +115,7 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
     Map<String, String> employeeDetails = new HashMap<>();
 
     try {
-        File file = new File("src/CSV/MotorPH Employees 2.csv");
+        File file = new File("src/CSV/MotorPH Employee Data UP.csv");
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
             reader.readLine(); // Skip the header row
@@ -122,6 +126,7 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
                     employeeDetails.put("EmployeeID", values[0].trim());
                     employeeDetails.put("FirstName", values[1].trim());
                     employeeDetails.put("LastName", values[2].trim());
+                    employeeDetails.put("Status", values[10].trim());
                     employeeDetails.put("Position", values[11].trim());
                     employeeDetails.put("Supervisor", values[12].trim());
                     break; // Exit the loop once the employee is found
@@ -143,6 +148,7 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
         rlfirstnameTF.setText(details.get("FirstName"));
         rllastnameTF.setText(details.get("LastName"));
         rlpositionTF.setText(details.get("Position"));
+        empstatusTF.setText(details.get("Status"));
         rlsupervisorTF.setText(details.get("Supervisor"));
         
         
@@ -150,6 +156,8 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
         empIDreqTF.setEditable(false);
         rlfirstnameTF.setEditable(false);
         rllastnameTF.setEditable(false);
+        rlpositionTF.setEditable(false);
+        empstatusTF.setEditable(false);
         
     } else {
         JOptionPane.showMessageDialog(this, "Employee details not found.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -157,26 +165,24 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
 }
 
    private void populateJTable(String employeeID) {
-    DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
-    model.setRowCount(0); // Clear the existing rows
+        DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
+        model.setRowCount(0);
 
-    try {
-        File file = new File("src/CSV/Leave Requests DB.csv");
-        try (CSVReader reader = new CSVReader(new FileReader(file))) {
-            reader.readNext(); // Read and discard the header row
-
-            String[] line;
-            while ((line = reader.readNext()) != null) {
-                if (line.length >= 12 && line[1].trim().equals(employeeID) && !line[10].equals("CANCELLED")) {
-                    System.out.println("Adding row for Employee ID: " + employeeID);
-                    model.addRow(preserveCommas(line));
+        try {
+            File file = new File("src/CSV/Leave Requests DB.csv");
+            try (CSVReader reader = new CSVReader(new FileReader(file))) {
+                reader.readNext(); // Read and discard the header row
+                String[] line;
+                while ((line = reader.readNext()) != null) {
+                    if (line.length >= 12 && line[1].trim().equals(employeeID) && !line[10].equals("CANCELLED")) {
+                        model.addRow(preserveCommas(line));
+                    }
                 }
             }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-    } catch (IOException e) {
-        // Handle the exception
     }
-}
    
    private Object[] preserveCommas(String[] line) {
     Object[] row = new Object[line.length];
@@ -188,6 +194,46 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
         }
     }
     return row;
+}
+   // This method check if it's the first leave request for the year
+private boolean isFirstLeaveRequestForYear(String empID, int year) {
+    try {
+        File file = new File("src/CSV/Leave Requests DB.csv");
+        try (CSVReader reader = new CSVReader(new FileReader(file))) {
+            reader.readNext(); // Skip header
+            String[] line;
+            while ((line = reader.readNext()) != null) {
+                if (line.length >= 11 && line[1].trim().equals(empID)) {
+                    Date leaveDate = dateFormat.parse(line[9]); // Start date of leave
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTime(leaveDate);
+                    if (cal.get(Calendar.YEAR) == year) {
+                        return false; // Found a leave request for this year
+                    }
+                }
+            }
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+    return true; // No leave requests found for this year
+}
+
+// Method to calculate remaining leave balances based on the most recent leave request
+private int[] calculateRemainingLeaves(String empID, int year) {
+    int[] remainingLeaves = new int[2]; // Index 0: Vacation Leaves, Index 1: Sick Leaves
+    String[] mostRecentRequest = getMostRecentLeaveRequest(empID, year);
+
+    if (mostRecentRequest != null) {
+        remainingLeaves[0] = Integer.parseInt(mostRecentRequest[12]); // Remaining Vacation Leaves
+        remainingLeaves[1] = Integer.parseInt(mostRecentRequest[13]); // Remaining Sick Leaves
+    } else {
+        // If no previous requests found for the year, set default values
+        remainingLeaves[0] = userRole.equals("Regular") ? 20 : 17; // Default Vacation Leaves
+        remainingLeaves[1] = 10; // Default Sick Leaves
+    }
+
+    return remainingLeaves;
 }
     /**
      * This method is called from within the constructor to initialize the form.
@@ -217,11 +263,9 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
         rllastnameTF = new javax.swing.JTextField();
         rlpositionLBL = new javax.swing.JLabel();
         rlpositionTF = new javax.swing.JTextField();
-        rlsupervisorLBL = new javax.swing.JLabel();
-        rlsupervisorTF = new javax.swing.JTextField();
+        empstatusTF = new javax.swing.JTextField();
+        empstatusLBL = new javax.swing.JLabel();
         empleavedetPanel = new javax.swing.JPanel();
-        typeofleaveLBL = new javax.swing.JLabel();
-        typeofleaveCB = new javax.swing.JComboBox<>();
         startLeaveLBL = new javax.swing.JLabel();
         startofleaveDC = new com.toedter.calendar.JDateChooser();
         endLeaveLBL = new javax.swing.JLabel();
@@ -232,6 +276,10 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
         cancelLeavePB = new javax.swing.JButton();
         jScrollPane1 = new javax.swing.JScrollPane();
         noteTA = new javax.swing.JTextArea();
+        typeofleaveLBL = new javax.swing.JLabel();
+        typeofleaveCB = new javax.swing.JComboBox<>();
+        rlsupervisorTF = new javax.swing.JTextField();
+        rlsupervisorLBL = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -282,26 +330,29 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
                 .addContainerGap(27, Short.MAX_VALUE))
         );
 
+        rlemptableSP.setHorizontalScrollBarPolicy(javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_ALWAYS);
+        rlemptableSP.setVerticalScrollBarPolicy(javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
+
         jTable1.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null},
-                {null, null, null, null, null, null, null, null, null, null, null, null}
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null},
+                {null, null, null, null, null, null, null, null, null, null, null, null, null, null}
             },
             new String [] {
-                "Date", "ID", "First Name", "Last Name", "Position", "Supervisor", "TOP", "Note", "Start", "End", "LStatus", "Remaining L "
+                "Date", "EID", "First Name", "Last Name", "Position", "Emp Status", "Supervisor", "TOP", "Note", "Start", "End", "Leave Status", "VL Remaining ", "SL Remaining "
             }
         ) {
             Class[] types = new Class [] {
-                java.lang.Object.class, java.lang.Integer.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.Object.class, java.lang.Object.class, java.lang.String.class, java.lang.Integer.class
+                java.lang.Object.class, java.lang.Integer.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.Object.class, java.lang.Object.class, java.lang.String.class, java.lang.Integer.class, java.lang.Integer.class
             };
             boolean[] canEdit = new boolean [] {
-                false, false, false, false, false, false, false, false, false, true, false, false
+                false, false, false, false, false, true, false, false, false, false, false, false, false, false
             };
 
             public Class getColumnClass(int columnIndex) {
@@ -313,12 +364,15 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
             }
         });
         rlemptableSP.setViewportView(jTable1);
+        if (jTable1.getColumnModel().getColumnCount() > 0) {
+            jTable1.getColumnModel().getColumn(5).setResizable(false);
+        }
 
         javax.swing.GroupLayout rlemptablePNLLayout = new javax.swing.GroupLayout(rlemptablePNL);
         rlemptablePNL.setLayout(rlemptablePNLLayout);
         rlemptablePNLLayout.setHorizontalGroup(
             rlemptablePNLLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, rlemptablePNLLayout.createSequentialGroup()
+            .addGroup(rlemptablePNLLayout.createSequentialGroup()
                 .addContainerGap()
                 .addComponent(rlemptableSP)
                 .addContainerGap())
@@ -361,15 +415,15 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
         rlpositionLBL.setForeground(new java.awt.Color(0, 0, 0));
         rlpositionLBL.setText("Position:");
 
-        rlsupervisorLBL.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
-        rlsupervisorLBL.setForeground(new java.awt.Color(0, 0, 0));
-        rlsupervisorLBL.setText("Immediate Supervisor:");
-
-        rlsupervisorTF.addActionListener(new java.awt.event.ActionListener() {
+        empstatusTF.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                rlsupervisorTFActionPerformed(evt);
+                empstatusTFActionPerformed(evt);
             }
         });
+
+        empstatusLBL.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        empstatusLBL.setForeground(new java.awt.Color(0, 0, 0));
+        empstatusLBL.setText("Employement Status:");
 
         javax.swing.GroupLayout empdetPanelLayout = new javax.swing.GroupLayout(empdetPanel);
         empdetPanel.setLayout(empdetPanelLayout);
@@ -388,15 +442,14 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
                             .addComponent(dateofsubmissionDC, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, 219, Short.MAX_VALUE))
                         .addComponent(rlfirstnameLBL, javax.swing.GroupLayout.PREFERRED_SIZE, 90, javax.swing.GroupLayout.PREFERRED_SIZE)))
                 .addGap(31, 31, 31)
-                .addGroup(empdetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                .addGroup(empdetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(empstatusTF, javax.swing.GroupLayout.PREFERRED_SIZE, 219, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addGroup(empdetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                         .addComponent(rldateofsubLBL1, javax.swing.GroupLayout.PREFERRED_SIZE, 101, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addComponent(empIDreqTF, javax.swing.GroupLayout.DEFAULT_SIZE, 219, Short.MAX_VALUE)
                         .addComponent(rllastnameLBL, javax.swing.GroupLayout.PREFERRED_SIZE, 90, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addComponent(rllastnameTF))
-                    .addGroup(empdetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                        .addComponent(rlsupervisorLBL)
-                        .addComponent(rlsupervisorTF, javax.swing.GroupLayout.PREFERRED_SIZE, 219, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                    .addComponent(empstatusLBL))
                 .addContainerGap(81, Short.MAX_VALUE))
         );
         empdetPanelLayout.setVerticalGroup(
@@ -423,32 +476,17 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(rllastnameTF, javax.swing.GroupLayout.PREFERRED_SIZE, 33, javax.swing.GroupLayout.PREFERRED_SIZE)))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addGroup(empdetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addGroup(empdetPanelLayout.createSequentialGroup()
-                        .addComponent(rlpositionLBL)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(rlpositionTF, javax.swing.GroupLayout.PREFERRED_SIZE, 33, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(empdetPanelLayout.createSequentialGroup()
-                        .addComponent(rlsupervisorLBL)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(rlsupervisorTF, javax.swing.GroupLayout.PREFERRED_SIZE, 33, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                .addGroup(empdetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(rlpositionLBL)
+                    .addComponent(empstatusLBL))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(empdetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(rlpositionTF, javax.swing.GroupLayout.PREFERRED_SIZE, 33, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(empstatusTF, javax.swing.GroupLayout.PREFERRED_SIZE, 33, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
         empleavedetPanel.setBorder(javax.swing.BorderFactory.createBevelBorder(javax.swing.border.BevelBorder.RAISED));
-
-        typeofleaveLBL.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
-        typeofleaveLBL.setForeground(new java.awt.Color(0, 0, 0));
-        typeofleaveLBL.setText("Type of Leave:");
-
-        typeofleaveCB.setBackground(new java.awt.Color(255, 255, 255));
-        typeofleaveCB.setEditable(true);
-        typeofleaveCB.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Select", "Sick Leave ", "Medical Leave", "Annual Leave ", "Emergency Leave ", "Paternity Leave ", "Maternity Leave ", "Vacation Leave ", "Bereavement Leave " }));
-        typeofleaveCB.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                typeofleaveCBActionPerformed(evt);
-            }
-        });
 
         startLeaveLBL.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         startLeaveLBL.setForeground(new java.awt.Color(0, 0, 0));
@@ -491,6 +529,29 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
         noteTA.setRows(5);
         jScrollPane1.setViewportView(noteTA);
 
+        typeofleaveLBL.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        typeofleaveLBL.setForeground(new java.awt.Color(0, 0, 0));
+        typeofleaveLBL.setText("Type of Leave:");
+
+        typeofleaveCB.setBackground(new java.awt.Color(255, 255, 255));
+        typeofleaveCB.setEditable(true);
+        typeofleaveCB.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Select", "Sick Leave ", "Vacation Leave ", "Paternity Leave ", "Maternity Leave " }));
+        typeofleaveCB.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                typeofleaveCBActionPerformed(evt);
+            }
+        });
+
+        rlsupervisorTF.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                rlsupervisorTFActionPerformed(evt);
+            }
+        });
+
+        rlsupervisorLBL.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        rlsupervisorLBL.setForeground(new java.awt.Color(0, 0, 0));
+        rlsupervisorLBL.setText("Immediate Supervisor:");
+
         javax.swing.GroupLayout empleavedetPanelLayout = new javax.swing.GroupLayout(empleavedetPanel);
         empleavedetPanel.setLayout(empleavedetPanelLayout);
         empleavedetPanelLayout.setHorizontalGroup(
@@ -498,30 +559,38 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
             .addGroup(empleavedetPanelLayout.createSequentialGroup()
                 .addGap(37, 37, 37)
                 .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                        .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(startLeaveLBL)
-                            .addComponent(startofleaveDC, javax.swing.GroupLayout.PREFERRED_SIZE, 219, javax.swing.GroupLayout.PREFERRED_SIZE))
-                        .addComponent(typeofleaveLBL)
-                        .addComponent(typeofleaveCB, javax.swing.GroupLayout.PREFERRED_SIZE, 219, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(startLeaveLBL)
+                    .addComponent(startofleaveDC, javax.swing.GroupLayout.PREFERRED_SIZE, 219, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addGroup(empleavedetPanelLayout.createSequentialGroup()
                         .addComponent(submitleavePB, javax.swing.GroupLayout.PREFERRED_SIZE, 73, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addGap(18, 18, 18)
                         .addComponent(clearleavePB, javax.swing.GroupLayout.PREFERRED_SIZE, 73, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addGap(18, 18, 18)
-                        .addComponent(cancelLeavePB, javax.swing.GroupLayout.PREFERRED_SIZE, 73, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                        .addComponent(cancelLeavePB, javax.swing.GroupLayout.PREFERRED_SIZE, 73, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(rlsupervisorTF, javax.swing.GroupLayout.PREFERRED_SIZE, 219, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(rlsupervisorLBL))
                 .addGap(36, 36, 36)
-                .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addComponent(noteLBL)
-                    .addComponent(endofleaveDC, javax.swing.GroupLayout.DEFAULT_SIZE, 219, Short.MAX_VALUE)
-                    .addComponent(endLeaveLBL)
-                    .addComponent(jScrollPane1))
+                .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(typeofleaveLBL)
+                    .addComponent(typeofleaveCB, javax.swing.GroupLayout.PREFERRED_SIZE, 219, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                        .addComponent(noteLBL)
+                        .addComponent(endofleaveDC, javax.swing.GroupLayout.DEFAULT_SIZE, 219, Short.MAX_VALUE)
+                        .addComponent(endLeaveLBL)
+                        .addComponent(jScrollPane1)))
                 .addContainerGap(61, Short.MAX_VALUE))
         );
         empleavedetPanelLayout.setVerticalGroup(
             empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(empleavedetPanelLayout.createSequentialGroup()
-                .addContainerGap()
+                .addGap(21, 21, 21)
+                .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(typeofleaveLBL)
+                    .addComponent(rlsupervisorLBL))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(typeofleaveCB, javax.swing.GroupLayout.PREFERRED_SIZE, 33, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(rlsupervisorTF, javax.swing.GroupLayout.PREFERRED_SIZE, 33, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addGroup(empleavedetPanelLayout.createSequentialGroup()
                         .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
@@ -532,22 +601,19 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
                     .addGroup(empleavedetPanelLayout.createSequentialGroup()
                         .addGap(26, 26, 26)
                         .addComponent(endofleaveDC, javax.swing.GroupLayout.PREFERRED_SIZE, 33, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                .addGap(18, 18, Short.MAX_VALUE)
-                .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addGroup(empleavedetPanelLayout.createSequentialGroup()
-                        .addComponent(typeofleaveLBL)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(typeofleaveCB, javax.swing.GroupLayout.PREFERRED_SIZE, 33, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                            .addComponent(submitleavePB, javax.swing.GroupLayout.DEFAULT_SIZE, 30, Short.MAX_VALUE)
-                            .addComponent(clearleavePB, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                            .addComponent(cancelLeavePB, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(empleavedetPanelLayout.createSequentialGroup()
                         .addComponent(noteLBL)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 98, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                .addContainerGap(23, Short.MAX_VALUE))
+                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 68, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addGroup(empleavedetPanelLayout.createSequentialGroup()
+                        .addGap(45, 45, 45)
+                        .addGroup(empleavedetPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(submitleavePB, javax.swing.GroupLayout.PREFERRED_SIZE, 30, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(clearleavePB, javax.swing.GroupLayout.PREFERRED_SIZE, 30, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(cancelLeavePB, javax.swing.GroupLayout.PREFERRED_SIZE, 30, javax.swing.GroupLayout.PREFERRED_SIZE))))
+                .addContainerGap(39, Short.MAX_VALUE))
         );
 
         javax.swing.GroupLayout leavemainPNLLayout = new javax.swing.GroupLayout(leavemainPNL);
@@ -573,11 +639,11 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
                 .addComponent(leaveheaderPNL, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(20, 20, 20)
                 .addGroup(leavemainPNLLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addComponent(empdetPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(empleavedetPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addGap(43, 43, 43)
+                    .addComponent(empleavedetPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(empdetPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addGap(18, 18, 18)
                 .addComponent(rlemptablePNL, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(61, Short.MAX_VALUE))
+                .addContainerGap(32, Short.MAX_VALUE))
         );
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -609,14 +675,10 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
     private void typeofleaveCBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_typeofleaveCBActionPerformed
         /* Types of Leaves:
         Select
-        Sick Leave
-        Medical Leave
-        Annual Leave 
-        Emergency Leave
-        Paternity Leave
-        Maternity Leave
-        Vacation Leave
-        Bereavement Leave
+        Sick Leave 
+        Vacation Leave 
+        Paternity Leave 
+        Maternity Leave 
         */
     }//GEN-LAST:event_typeofleaveCBActionPerformed
 
@@ -625,221 +687,281 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
     }//GEN-LAST:event_rlfirstnameTFActionPerformed
 
     private void submitleavePBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_submitleavePBActionPerformed
-       // Capture the user input
-           
-            Date dateOfSubmissionObj = dateofsubmissionDC.getDate();
-            String dateOfSubmission = dateOfSubmissionObj != null ? dateFormat.format(dateOfSubmissionObj) : "";
+        // Capture and format the dates from the form fields
+    Date submissionDateObj = dateofsubmissionDC.getDate();
+    Calendar cal = Calendar.getInstance();
+    cal.setTime(submissionDateObj);
+    int year = cal.get(Calendar.YEAR);
 
-            String empID = empIDreqTF.getText().trim();
-            String firstName = rlfirstnameTF.getText().trim();
-            String lastName = rllastnameTF.getText().trim();
-            String position = rlpositionTF.getText().trim();
-            String supervisor = rlsupervisorTF.getText().trim();
-            String leaveType = typeofleaveCB.getSelectedItem().toString().trim();
-            String note = noteTA.getText().trim();
+    // Retrieve and trim input fields
+    String empID = empIDreqTF.getText().trim();
+    String firstName = rlfirstnameTF.getText().trim();
+    String lastName = rllastnameTF.getText().trim();
+    String position = rlpositionTF.getText().trim();
+    String supervisor = rlsupervisorTF.getText().trim();
+    String status = empstatusTF.getText().trim();
+    String leaveType = typeofleaveCB.getSelectedItem().toString().trim();
+    String note = noteTA.getText().trim();
 
-            Date startDateObj = startofleaveDC.getDate();
-            String startDate = startDateObj != null ? dateFormat.format(startDateObj) : "";
+    // Format start and end dates
+    Date startDateObj = startofleaveDC.getDate();
+    String startDate = startDateObj != null ? dateFormat.format(startDateObj) : "";
+    Date endDateObj = endofleaveDC.getDate();
+    String endDate = endDateObj != null ? dateFormat.format(endDateObj) : "";
 
-            Date endDateObj = endofleaveDC.getDate();
-            String endDate = endDateObj != null ? dateFormat.format(endDateObj) : "";
-            
-            // Check for null dates
-            if (startDateObj == null || endDateObj == null) {
-                JOptionPane.showMessageDialog(this, "Please select both start and end dates.", "Date Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+    // Validate date selection
+    if (startDateObj == null || endDateObj == null) {
+        JOptionPane.showMessageDialog(this, "Please select both start and end dates.", "Date Error", JOptionPane.ERROR_MESSAGE);
+        return;
+    }
 
+    // Ensure all required fields are filled
+    if (empID.isEmpty() || firstName.isEmpty() || lastName.isEmpty() || position.isEmpty() ||
+            supervisor.isEmpty() || leaveType.equals("Select") || startDate.isEmpty() || endDate.isEmpty()) {
+        JOptionPane.showMessageDialog(this, "Please fill in all required fields.", "Input Error", JOptionPane.ERROR_MESSAGE);
+        return;
+    }
+
+    // Check for commas in input fields to avoid CSV parsing issues
+    if (containsComma(empID) || containsComma(firstName) || containsComma(lastName) ||
+            containsComma(position) || containsComma(supervisor) || containsComma(leaveType) || containsComma(note)) {
+        JOptionPane.showMessageDialog(this, "Input fields must not contain commas.", "Input Error", JOptionPane.ERROR_MESSAGE);
+        return;
+    }
+
+    // Prevent duplicate leave requests for the same employee on the same dates
+    if (isDuplicateEntry(empID, startDate, endDate)) {
+        JOptionPane.showMessageDialog(this, "Duplicate leave request found. Please check the existing entries.", "Duplicate Entry", JOptionPane.ERROR_MESSAGE);
+        return;
+    }
+
+    // Check if the most recent leave request for the same year is still pending
+    String[] mostRecentRequest = getMostRecentLeaveRequest(empID, year);
+    if (mostRecentRequest != null && mostRecentRequest[11].trim().equals("Pending")) {
+        JOptionPane.showMessageDialog(this, "You cannot submit another leave request while there is a pending request for the same year.", "Pending Request", JOptionPane.ERROR_MESSAGE);
+        return;
+    }
+
+     // Calculate the duration of the leave in days
+    long leaveDuration = ChronoUnit.DAYS.between(startDateObj.toInstant().atZone(ZoneId.systemDefault()).toLocalDate(),
+            endDateObj.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()) + 1;
+
+    // Calculate remaining leaves without deductions
+    int[] remainingLeaves = calculateRemainingLeaves(empID, year);
     
-            // Validate the inputs
-            if (empID.isEmpty() || firstName.isEmpty() || lastName.isEmpty() || position.isEmpty() ||
-                    supervisor.isEmpty() || leaveType.equals("Select") || startDate.isEmpty() || endDate.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please fill in all required fields.", "Input Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            
-            // Check for commas in inputs
-            if (containsComma(empID) || containsComma(firstName) || containsComma(lastName) ||
-                containsComma(position) || containsComma(supervisor) || containsComma(leaveType) || containsComma(note)) {
-                JOptionPane.showMessageDialog(this, "Input fields must not contain commas.", "Input Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-    
-            // Check for duplicate entry
-            if (isDuplicateEntry(empID, startDate, endDate)) {
-                JOptionPane.showMessageDialog(this, "Duplicate leave request found. Please check the existing entries.", "Duplicate Entry", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+    // Validate if the leave can be submitted based on remaining credits and leave duration
+    if (!canSubmitLeave(empID, leaveType, leaveDuration, status, year)) {
+        return;
+    }
 
-            // Calculate leave duration
-            long leaveDuration = ChronoUnit.DAYS.between(startDateObj.toInstant().atZone(ZoneId.systemDefault()).toLocalDate(), 
-                                                  endDateObj.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()) + 1;
+    // Format fields for CSV to handle special characters
+    firstName = formatFieldWithQuotes(firstName);
+    lastName = formatFieldWithQuotes(lastName);
+    position = formatFieldWithQuotes(position);
+    supervisor = formatFieldWithQuotes(supervisor);
+    leaveType = formatFieldWithQuotes(leaveType);
+    note = formatFieldWithQuotes(note);
 
-            // Get remaining leaves
-            int remainingLeaves = getRemainingLeaves(empID);
-            if (remainingLeaves < leaveDuration) {  // Check leave balance
-                JOptionPane.showMessageDialog(this, "Leave cannot be submitted. Remaining leave balance is insufficient.", "Leave Balance Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+    // Calculate new remaining leave balances
+    int remainingVacationLeaves = getRemainingLeaves(empID, "Vacation", status, year);
+    int remainingSickLeaves = getRemainingLeaves(empID, "Sick", status, year);
 
-            // Ensure fields with commas are quoted
-            firstName = formatFieldWithQuotes(firstName);
-            lastName = formatFieldWithQuotes(lastName);
-            position = formatFieldWithQuotes(position);
-            supervisor = formatFieldWithQuotes(supervisor);
-            leaveType = formatFieldWithQuotes(leaveType);
-            note = formatFieldWithQuotes(note);
-
-            // Build data string, using quotes around fields that may contain commas
-            String data = String.format("\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"Pending\",\"%s\"",
-                dateOfSubmission, empID, firstName, lastName, position, supervisor, leaveType, note, startDate, endDate, remainingLeaves);
-
-            File file = new File("src/CSV/Leave Requests DB.csv");
-            String tempFileName = "src/CSV/Leave Requests DB_temp.csv";
-            File tempFile = new File(tempFileName);
-
-            try (CSVReader reader = new CSVReader(new FileReader(file));
-                 FileWriter fw = new FileWriter(tempFile);
-                 BufferedWriter bw = new BufferedWriter(fw)) {
-
-            // Read the header and write it to the temp file
-            String[] headerRow = reader.readNext();
-            bw.write(String.join(",", (CharSequence[]) (Object[]) headerRow) + "\n");
-
-            // Write each line from the original file to the temp file
-            String[] line;
-            while ((line = reader.readNext()) != null) {
-                bw.write(String.join(",", (CharSequence[]) (Object[]) line) + "\n");
-            }
-
-            // Append the new request data to a new line in the temp file
-            bw.write(data + "\n");
-            bw.flush(); // Ensure data is written immediately
-
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Error saving leave request.", "File Error", JOptionPane.ERROR_MESSAGE);
-            e.printStackTrace();
+    // Check if it's the first leave request of the year for the employee
+    if (isFirstLeaveRequestOfYear(empID, year)) {
+        // Set initial leave counts without deduction if it's the first leave request of the year
+        remainingVacationLeaves = status.equals("Regular") ? 20 : 17; // Set default vacation leaves
+        remainingSickLeaves = 10; // Set default sick leaves
+    } else {
+        // Deduct leave duration from remaining balances
+        if (leaveType.equals("Vacation Leave")) {
+            remainingVacationLeaves -= leaveDuration;
+        } else if (leaveType.equals("Sick Leave")) {
+            remainingSickLeaves -= leaveDuration;
         }
-            
+    }
 
-            // Delete the original file
-            if (!file.delete()) {
-                System.out.println("Could not delete original file.");
-            }
+    // Write the leave request to the CSV file
+    try (FileWriter fileWriter = new FileWriter("src/CSV/Leave Requests DB.csv", true);
+         BufferedWriter writer = new BufferedWriter(fileWriter)) {
 
-            // Rename the temporary file to the original file
-            if (!tempFile.renameTo(file)) {
-                System.out.println("Could not rename temp file to original file.");
-            }
+        // Write the leave request to the CSV file with remaining leaves
+        writer.write(String.join(",", dateFormat.format(submissionDateObj), empID, firstName, lastName, position, status, supervisor,
+                leaveType, note, startDate, endDate, "Pending", String.valueOf(remainingLeaves[0]), String.valueOf(remainingLeaves[1])) + "\n");
+        writer.flush();
 
-            // Update remaining leaves
-            updateRemainingLeaves(empID, remainingLeaves - (int) leaveDuration);
+        // Update the table to reflect the new leave request and clear input fields
+        populateJTable(empID);
+        JOptionPane.showMessageDialog(this, "Leave request submitted successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+        clearFields();
 
-            JOptionPane.showMessageDialog(this, "Leave request submitted successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-
-            // Refresh the JTable with the updated data
-            populateJTable(employeeID);
-
-            // Clear the form after submission
-            clearleavePBActionPerformed(evt);
+    } catch (IOException e) {
+        JOptionPane.showMessageDialog(this, "Error saving leave request.", "File Error", JOptionPane.ERROR_MESSAGE);
+        e.printStackTrace();
+    }
 }
 
+// Method to get the most recent leave request for an employee in the same year
+private String[] getMostRecentLeaveRequest(String empID, int year) {
+    String[] mostRecentRequest = null;
 
-        // Helper function to check if a string contains a comma
-        private boolean containsComma(String input) {
-            return input != null && input.contains(",");
-        }
-        
-        //Duplicate Handling
-        private boolean isDuplicateEntry(String empID, String startDate, String endDate) {
-            try (CSVReader reader = new CSVReader(new FileReader("src/CSV/Leave Requests DB.csv"))) {
-                String[] line;
-                reader.readNext(); // Skip the header row
-                while ((line = reader.readNext()) != null) {
-                    if (line.length == 12 && line[1].equals(empID) && line[8].equals(startDate) && line[9].equals(endDate) && line[10].equals("Pending")) {
-                        return true;
-                    }
-                }
-            } catch (IOException e) {
-                // Handle the exception
-            }
-            return false;
-        }
-
-    // Function to check remaining sick leaves from the CSV file
-    private int getRemainingLeaves(String empID) {
+    try {
         File file = new File("src/CSV/Leave Requests DB.csv");
-        int totalLeaves = 15; // Maximum allowed leaves per year (sick leave: https://www.skuad.io/leave-policy/philippines#:~:text=Sick%20leave%20in%20the%20Philippines,-Employers%20are%20required&text=Employees%20are%20entitled%20to%2012,days%20of%20annual%20sick%20leave. )
-        int takenLeaves = 0;
-
-        int currentYear = LocalDate.now().getYear(); // Get current year
-
         try (CSVReader reader = new CSVReader(new FileReader(file))) {
+            reader.readNext(); // Skip header row
             String[] line;
             while ((line = reader.readNext()) != null) {
-                if (line.length == 12 && line[1].trim().equals(empID)) {
-                    String[] startDateParts = line[8].split("/");
-                    String[] endDateParts = line[9].split("/");
-                    if (startDateParts.length == 3 && endDateParts.length == 3) {
-                        int startYear = Integer.parseInt(startDateParts[2]);
-                        int endYear = Integer.parseInt(endDateParts[2]);
-
-                        if (startYear == currentYear && endYear == currentYear) {
-                            if (line[10].equals("Accepted")) { //only subtracts remaining leaves if the status is "Accepted" by admin
-                                // Calculate days for leave in the current year
-                                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
-                                Date startDate = sdf.parse(line[8]);
-                                Date endDate = sdf.parse(line[9]);
-                                long duration = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) + 1;
-                                takenLeaves += duration;
-                            }
-                        }
+                if (line.length >= 14 && line[1].trim().equals(empID)) {
+                    Date leaveDate = dateFormat.parse(line[0]); // Date of submission
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTime(leaveDate);
+                    if (cal.get(Calendar.YEAR) == year) {
+                        mostRecentRequest = line;
                     }
                 }
             }
-        } catch (IOException | NumberFormatException | java.text.ParseException e) {
         }
-        return totalLeaves - takenLeaves;
+    } catch (Exception e) {
+        e.printStackTrace();
     }
 
-    // Function to update remaining leaves in the CSV file
-    private void updateRemainingLeaves(String empID, int newRemainingLeaves) {
+    return mostRecentRequest;
+}
+
+// This method retrieves the remaining leave balances for an employee
+private int getRemainingLeaves(String empID, String leaveType, String status, int year) {
+     int remainingLeaves = 0;
+    int defaultVacationLeaves = status.equals("Regular") ? 20 : 17;
+    int defaultSickLeaves = 10;
+
+    // Check if it's the first leave request of the year for the employee
+    if (isFirstLeaveRequestOfYear(empID, year)) {
+        return leaveType.equals("Vacation") ? defaultVacationLeaves : defaultSickLeaves;
+    }
+
+    // Read the Leave Requests DB to find the most recent leave balance
+    try {
         File file = new File("src/CSV/Leave Requests DB.csv");
-            String tempFileName = "src/CSV/Leave Requests DB_temp.csv";
-            File tempFile = new File(tempFileName);
-
-            try (CSVReader reader = new CSVReader(new FileReader(file));
-                 FileWriter fw = new FileWriter(tempFile);
-                 BufferedWriter bw = new BufferedWriter(fw)) {
-
-                String[] headerRow = reader.readNext();
-                bw.write(String.join(",", headerRow) + "\n");
-
-                String[] line;
-                while ((line = reader.readNext()) != null) {
-                    if (line.length == 13 && line[2].trim().equals(empID)) {
-                        line[12] = String.valueOf(newRemainingLeaves);
+        try (CSVReader reader = new CSVReader(new FileReader(file))) {
+            reader.readNext(); // Skip header
+            String[] line;
+            String[] mostRecentEntry = null;
+            while ((line = reader.readNext()) != null) {
+                if (line.length >= 14 && line[1].trim().equals(empID)) {
+                    Date leaveDate = dateFormat.parse(line[0]); // Date of submission
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTime(leaveDate);
+                    if (cal.get(Calendar.YEAR) == year) {
+                        mostRecentEntry = line;
                     }
-                    bw.write(String.join(",", line) + "\n");
                 }
-            } catch (IOException e) {
             }
-
-            if (!file.delete()) {
-                System.out.println("Could not delete original file.");
+            if (mostRecentEntry != null) {
+                remainingLeaves = leaveType.equals("Vacation") ?
+                    Integer.parseInt(mostRecentEntry[12]) :
+                    Integer.parseInt(mostRecentEntry[13]);
             }
-            if (!tempFile.renameTo(file)) {
-                System.out.println("Could not rename temp file to original file.");
-            }
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
     }
 
-    // Function to format fields with quotes if they contain commas
-    private String formatFieldWithQuotes(String field) {
-        String escapedField = field.replace("\"", "\"\""); // Escape existing double quotes
-        if (escapedField.contains(",")) {
-            escapedField = "\"" + escapedField + "\""; // Enclose the field with double quotes if it contains commas
+    return remainingLeaves;
+}
+
+// Method to check if it's the first leave request of the year for an employee
+private boolean isFirstLeaveRequestOfYear(String empID, int year) {
+    boolean isFirstRequest = true;
+
+    try {
+        File file = new File("src/CSV/Leave Requests DB.csv");
+        try (CSVReader reader = new CSVReader(new FileReader(file))) {
+            reader.readNext(); // Skip header row
+            String[] line;
+            while ((line = reader.readNext()) != null) {
+                if (line.length >= 14 && line[1].trim().equals(empID)) {
+                    Date leaveDate = dateFormat.parse(line[0]); // Date of submission
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTime(leaveDate);
+                    if (cal.get(Calendar.YEAR) == year) {
+                        isFirstRequest = false;
+                        break;
+                    }
+                }
+            }
         }
-        return escapedField;
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+
+    return isFirstRequest;
+}
+
+// This method checks if a leave request for the same dates already exists
+private boolean isDuplicateEntry(String empID, String startDate, String endDate) {
+    boolean isDuplicate = false;
+
+    // Read leave requests from the file to check for duplicates
+    try {
+        File file = new File("src/CSV/Leave Requests DB.csv");
+        try (CSVReader reader = new CSVReader(new FileReader(file))) {
+            reader.readNext(); // Read and discard the header row
+            String[] line;
+            while ((line = reader.readNext()) != null) {
+                if (line.length >= 11 && line[1].trim().equals(empID) && line[9].trim().equals(startDate) && line[10].trim().equals(endDate)) {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+        }
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+
+    return isDuplicate;
+}
+
+// This method validates if a leave can be submitted based on remaining leave balances and duration
+private boolean canSubmitLeave(String empID, String leaveType, long leaveDuration, String status, int year) {
+    int remainingLeaves = getRemainingLeaves(empID, leaveType, status, year);
+
+    if (remainingLeaves < leaveDuration) {
+        JOptionPane.showMessageDialog(this, 
+            "Cannot submit " + leaveType + " request as it exceeds your remaining leave credits (" + remainingLeaves + " days).", 
+            "Leave Error", JOptionPane.ERROR_MESSAGE);
+        return false;
+    }
+    return true;
+}
+
+// This method checks if a string contains a comma to prevent CSV parsing issues
+private boolean containsComma(String value) {
+    return value.contains(",");
+}
+
+// This method formats a field to include quotes if it contains a comma or double quotes
+private String formatFieldWithQuotes(String field) {
+    if (field.contains("\"")) {
+        field = field.replace("\"", "\"\"");
+    }
+    if (field.contains(",")) {
+        field = "\"" + field + "\"";
+    }
+    return field;
+}
+
+// This method clears all the input fields in the form after submission
+private void clearFields() {
+    dateofsubmissionDC.setDate(null);
+    empIDreqTF.setText("");
+    rlfirstnameTF.setText("");
+    rllastnameTF.setText("");
+    rlpositionTF.setText("");
+    empstatusTF.setText("");
+    rlsupervisorTF.setText("");
+    typeofleaveCB.setSelectedIndex(0);
+    noteTA.setText("");
+    startofleaveDC.setDate(null);
+    endofleaveDC.setDate(null);
         
     }//GEN-LAST:event_submitleavePBActionPerformed
 
@@ -859,14 +981,15 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
     }//GEN-LAST:event_clearleavePBActionPerformed
 
     private void cancelLeavePBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cancelLeavePBActionPerformed
-          int selectedRow = jTable1.getSelectedRow();
+        //Cancel button code
+        int selectedRow = jTable1.getSelectedRow();
             if (selectedRow == -1) {
                 JOptionPane.showMessageDialog(this, "Please select a leave request to cancel.", "Cancel Request", JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
 
             DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
-            String status = (String) model.getValueAt(selectedRow, 10);
+            String status = (String) model.getValueAt(selectedRow, 11); // LStatus (Leave Status) column index
 
             if (!status.equals("Pending")) {
                 JOptionPane.showMessageDialog(this, "You can only cancel leave requests with 'Pending' status.", "Cancel Request", JOptionPane.INFORMATION_MESSAGE);
@@ -875,52 +998,65 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
 
             int confirmResult = JOptionPane.showConfirmDialog(this, "Are you sure you want to cancel the selected leave request?", "Cancel Request", JOptionPane.YES_NO_OPTION);
             if (confirmResult == JOptionPane.YES_OPTION) {
-                String empID = (String) model.getValueAt(selectedRow, 1);
-                String startDate = (String) model.getValueAt(selectedRow, 8);
-                String endDate = (String) model.getValueAt(selectedRow, 9);
+                String empID = (String) model.getValueAt(selectedRow, 1); // ID column index
+                String startDate = (String) model.getValueAt(selectedRow, 9); // Start date column index
+                String endDate = (String) model.getValueAt(selectedRow, 10); // End date column index
 
-                removeLeaveRequest(empID, startDate, endDate);
-                model.removeRow(selectedRow);
-                JOptionPane.showMessageDialog(this, "Leave request canceled successfully.", "Cancel Request", JOptionPane.INFORMATION_MESSAGE);
+                try {
+                    if (removeLeaveRequest(empID, startDate, endDate)) {
+                        model.removeRow(selectedRow);
+                        JOptionPane.showMessageDialog(this, "Leave request canceled successfully.", "Cancel Request", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Failed to cancel leave request. Please try again.", "Cancel Request", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (IOException e) {
+                    JOptionPane.showMessageDialog(this, "Error occurred while canceling leave request.", "Cancel Request", JOptionPane.ERROR_MESSAGE);
+                    e.printStackTrace(); // Handle exception properly based on your application's error logging strategy
+                }
             }
         
     }//GEN-LAST:event_cancelLeavePBActionPerformed
+    
+    private boolean removeLeaveRequest(String empID, String startDate, String endDate) throws IOException {
+    File file = new File("src/CSV/Leave Requests DB.csv");
+    String tempFileName = "src/CSV/Leave Requests DB_temp.csv";
+    File tempFile = new File(tempFileName);
 
+    try (CSVReader reader = new CSVReader(new FileReader(file));
+         FileWriter fw = new FileWriter(tempFile);
+         BufferedWriter bw = new BufferedWriter(fw)) {
+
+        String[] headerRow = reader.readNext();
+        bw.write(String.join(",", headerRow) + "\n");
+
+        String[] line;
+        while ((line = reader.readNext()) != null) {
+            if (!(line.length == 14 && line[1].equals(empID) && line[9].equals(startDate) && line[10].equals(endDate))) {
+                bw.write(String.join(",", line) + "\n");
+            }
+        }
+    }
+
+    if (!file.delete()) {
+        System.out.println("Could not delete original file.");
+    }
+    if (!tempFile.renameTo(file)) {
+        System.out.println("Could not rename temp file to original file.");
+    }
+
+    populateJTable(employeeID); // Assuming this method updates your JTable with the latest data
+    return true;
+}
+    
     private void rlsupervisorTFActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_rlsupervisorTFActionPerformed
         // TODO add your handling code here:
     }//GEN-LAST:event_rlsupervisorTFActionPerformed
+
+    private void empstatusTFActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_empstatusTFActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_empstatusTFActionPerformed
     
-    //Use case when user cancelled the submitted leave request
-     private void removeLeaveRequest(String empID, String startDate, String endDate) {
-        File file = new File("src/CSV/Leave Requests DB.csv");
-            String tempFileName = "src/CSV/Leave Requests DB_temp.csv";
-            File tempFile = new File(tempFileName);
-
-            try (CSVReader reader = new CSVReader(new FileReader(file));
-                 FileWriter fw = new FileWriter(tempFile);
-                 BufferedWriter bw = new BufferedWriter(fw)) {
-
-                String[] headerRow = reader.readNext();
-                bw.write(String.join(",", headerRow) + "\n");
-
-                String[] line;
-                while ((line = reader.readNext()) != null) {
-                    if (!(line.length == 13 && line[2].equals(empID) && line[9].equals(startDate) && line[10].equals(endDate))) {
-                        bw.write(String.join(",", line) + "\n");
-                    }
-                }
-            } catch (IOException e) {
-            }
-
-            if (!file.delete()) {
-                System.out.println("Could not delete original file.");
-            }
-            if (!tempFile.renameTo(file)) {
-                System.out.println("Could not rename temp file to original file.");
-            }
-
-            populateJTable(employeeID);
-}
+    
 
     
     
@@ -966,6 +1102,8 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
     private javax.swing.JTextField empIDreqTF;
     private javax.swing.JPanel empdetPanel;
     private javax.swing.JPanel empleavedetPanel;
+    private javax.swing.JLabel empstatusLBL;
+    private javax.swing.JTextField empstatusTF;
     private javax.swing.JLabel endLeaveLBL;
     private com.toedter.calendar.JDateChooser endofleaveDC;
     private javax.swing.JScrollPane jScrollPane1;
@@ -993,5 +1131,6 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
     private javax.swing.JComboBox<String> typeofleaveCB;
     private javax.swing.JLabel typeofleaveLBL;
     // End of variables declaration//GEN-END:variables
+
 }
     

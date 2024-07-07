@@ -35,7 +35,7 @@ public class PersonalDetailsPage extends javax.swing.JFrame {
     
       private static class EmployeeDetailsFetcher {
 
-        private static final String CSV_FILE_PATH = "src/CSV/MotorPH Employees 2.csv";
+        private static final String CSV_FILE_PATH = "src/CSV/MotorPH Employee Data UP.csv";
         private static final String CSV_SEPARATOR = ",";
 
         public static String[] fetchEmployeeDetails(String employeeID) throws IOException {

@@ -1,13 +1,13 @@
 /*
-TO FIX:
-- resize table columns (header labels can't be seen fully)
 
-TO ADD:
-- No duplication code for employee ID
-- Error pop up for that duplication code
+ADDED!
+- Error pop up for that duplication code (duplicate employee number)
+- Update button function restored
+- Resizing is manual
 */
 package MPHpages.AccountingPortal;
 
+import MPHpages.HR_ManagerPortal.*;
 import java.awt.Component;
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -19,6 +19,15 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumn;
+import com.opencsv.CSVWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 import javax.swing.JOptionPane;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
@@ -35,22 +44,15 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
      * Creates new form EmployeeDetails
      * @param fullName
      * @param employeeID
-     * @param userRole
      */
-    
     public EmployeeDetailsACC(String fullName, String employeeID, String userRole) {
-        initComponents();
-        this.fullName = fullName; // Store full name
-        this.employeeID = employeeID; // Add a field to store the employee ID from login page
-        this.userRole = userRole; // Add a field to store the user role
-        loadCSV("src/CSV/MotorPH Employees_empdetails.csv");
-    }
-    
-    public EmployeeDetailsACC() {
      initComponents();
-         
-        
-    // Add mouse listener to the table
+     this.fullName = fullName; 
+     this.employeeID = employeeID;
+     this.userRole = userRole;
+     loadCSV("src/CSV/MotorPH Employee Data UP.csv"); 
+     
+     // Add mouse listener to the table
      tblERecords.addMouseListener(new java.awt.event.MouseAdapter() {
         public void mouseClicked(java.awt.event.MouseEvent evt) {
             int selectedRow = tblERecords.getSelectedRow();
@@ -58,30 +60,56 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
                 TFenum.setText(tblERecords.getValueAt(selectedRow, 0).toString());
                 TFlastn.setText(tblERecords.getValueAt(selectedRow, 1).toString());
                 TFfirstn.setText(tblERecords.getValueAt(selectedRow, 2).toString());
-                TFsss.setText(tblERecords.getValueAt(selectedRow, 3).toString());
-                TFphilh.setText(tblERecords.getValueAt(selectedRow, 4).toString());
-                TFtin.setText(tblERecords.getValueAt(selectedRow, 5).toString());
-                TFpagibig.setText(tblERecords.getValueAt(selectedRow, 6).toString());
-                TFstatus.setText(tblERecords.getValueAt(selectedRow, 7).toString());
-                TFpos.setText(tblERecords.getValueAt(selectedRow, 8).toString());
-                TFsupervisor.setText(tblERecords.getValueAt(selectedRow, 9).toString());
-                TFbasicsalary.setText(tblERecords.getValueAt(selectedRow, 10).toString());
-                TFricesub.setText(tblERecords.getValueAt(selectedRow, 11).toString());
-                TFphoneallow.setText(tblERecords.getValueAt(selectedRow, 12).toString());
-                TFclothingallow.setText(tblERecords.getValueAt(selectedRow, 13).toString());
+                
+                // Get the date string from the table and convert it to Date
+                String dateString = tblERecords.getValueAt(selectedRow, 3).toString(); // Assume the date is in column 3
+                SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy"); // Adjust format as per your CSV data
+                try {
+                Date date = dateFormat.parse(dateString);
+                jDateChooserBday.setDate(date);
+                } catch (ParseException e) {
+                JOptionPane.showMessageDialog(null, "Invalid date format: " + dateString);
+                }
+                
+                TFAddress.setText(tblERecords.getValueAt(selectedRow, 4).toString());
+                TFphonenum.setText(tblERecords.getValueAt(selectedRow, 5).toString());
+                TFsss.setText(tblERecords.getValueAt(selectedRow, 6).toString());
+                TFphilh.setText(tblERecords.getValueAt(selectedRow, 7).toString());
+                TFpagibig.setText(tblERecords.getValueAt(selectedRow, 8).toString());
+                TFtin.setText(tblERecords.getValueAt(selectedRow, 9).toString());
+                TFstatus.setSelectedItem(tblERecords.getValueAt(selectedRow, 10).toString());
+                TFpos.setText(tblERecords.getValueAt(selectedRow, 11).toString());
+                TFsupervisor.setText(tblERecords.getValueAt(selectedRow, 12).toString());
+                TFbasicsalary.setText(tblERecords.getValueAt(selectedRow, 13).toString());
+                TFricesub.setText(tblERecords.getValueAt(selectedRow, 14).toString());
+                TFphoneallow.setText(tblERecords.getValueAt(selectedRow, 15).toString());
+                TFclothingallow.setText(tblERecords.getValueAt(selectedRow, 16).toString());
+                TFhourlyrate.setText(tblERecords.getValueAt(selectedRow, 17).toString());
             }
         }
     });
-        this.fullName = null;
+    }
+    
+    public EmployeeDetailsACC() {
+     initComponents();
+              
+        backbuttondetailsPB.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                backbuttondetailsPBActionPerformed(evt);
+            }
+        });
+       
+        
+     // Initialize fullName to an empty string or any default value
+        this.fullName = "";
         this.employeeID = null;
         this.userRole = null;
-     
     }
     
     private void loadCSV(String filename) {
         String line;
         DefaultTableModel model = (DefaultTableModel) tblERecords.getModel();
-
+        Set<String> employeeID = new HashSet<>();
         try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
            
             
@@ -96,28 +124,25 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
             // Read remaining lines
             while ((line = br.readLine()) != null) {
                 String[] data = parseCSVLine(line); // Use parseCSVLine to handle commas within fields
+                String empID = data[0];
+                
+                if (employeeID.contains(empID)) {
+                    JOptionPane.showMessageDialog(this, "Duplicate Employee ID found: " + empID, "Error", JOptionPane.ERROR_MESSAGE);
+                    continue;
+                }
+                employeeID.add(empID);
                 model.addRow(data);
             }
 
             // Adjust row heights
             adjustRowHeight();
+              // Adjust column widths
+            adjustColumnWidths();
 
             // Make table non-editable
             for (int i = 0; i < model.getColumnCount(); i++) {
                 TableColumn column = tblERecords.getColumnModel().getColumn(i);
                 column.setCellEditor(null);
-            }
-
-            // Make table non-resizable
-            tblERecords.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-
-            // Resize table columns to fit content
-            for (int i = 0; i < model.getColumnCount(); i++) {
-                TableColumn column = tblERecords.getColumnModel().getColumn(i);
-                int width = getColumnWidth(i);
-                column.setPreferredWidth(width);
-                column.setMaxWidth(width);
-                column.setMinWidth(width);
             }
 
         } catch (Exception e) {
@@ -155,16 +180,26 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
         }
     }
 
+    // Adjust column widths to fit content
+    private void adjustColumnWidths() {
+        for (int column = 0; column < tblERecords.getColumnCount(); column++) {
+            int width = getColumnWidth(column);
+            tblERecords.getColumnModel().getColumn(column).setPreferredWidth(width);
+        }
+    }
+    
     // Get the preferred width of a column based on the content
     private int getColumnWidth(int column) {
         int width = 0;
+        TableCellRenderer headerRenderer = tblERecords.getTableHeader().getDefaultRenderer();
+        Component headerComp = headerRenderer.getTableCellRendererComponent(tblERecords, tblERecords.getColumnModel().getColumn(column).getHeaderValue(), false, false, 0, column);
+        width = Math.max(headerComp.getPreferredSize().width + tblERecords.getIntercellSpacing().width, width);
         for (int row = 0; row < tblERecords.getRowCount(); row++) {
             TableCellRenderer renderer = tblERecords.getCellRenderer(row, column);
             Component comp = tblERecords.prepareRenderer(renderer, row, column);
             width = Math.max(comp.getPreferredSize().width + tblERecords.getIntercellSpacing().width, width);
         }
         return width;
-        
     }
     
    
@@ -191,7 +226,6 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
         jLabel10 = new javax.swing.JLabel();
         TFphilh = new javax.swing.JTextField();
         jLabel13 = new javax.swing.JLabel();
-        TFstatus = new javax.swing.JTextField();
         jScrollPane1 = new javax.swing.JScrollPane();
         tblERecords = new javax.swing.JTable();
         jPanel1 = new javax.swing.JPanel();
@@ -206,6 +240,16 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
         TFphoneallow = new javax.swing.JTextField();
         lblclothingallow = new javax.swing.JLabel();
         TFclothingallow = new javax.swing.JTextField();
+        TFstatus = new javax.swing.JComboBox<>();
+        TFhourlyrate = new javax.swing.JTextField();
+        lbhourlyrate = new javax.swing.JLabel();
+        jLabel6 = new javax.swing.JLabel();
+        jLabel7 = new javax.swing.JLabel();
+        jDateChooserBday = new com.toedter.calendar.JDateChooser();
+        LBLphonenum = new javax.swing.JLabel();
+        TFphonenum = new javax.swing.JTextField();
+        jScrollPane3 = new javax.swing.JScrollPane();
+        TFAddress = new javax.swing.JTextArea();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setBackground(new java.awt.Color(204, 204, 204));
@@ -303,23 +347,16 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
         jLabel13.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
         jLabel13.setText("Status:");
 
-        TFstatus.setHorizontalAlignment(javax.swing.JTextField.LEFT);
-        TFstatus.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                TFstatusActionPerformed(evt);
-            }
-        });
-
         tblERecords.setModel(new javax.swing.table.DefaultTableModel(
             new Object [][] {
 
             },
             new String [] {
-                "Employee #", "Last Name", "First Name", "SSS #", "PhilHealth #", "TIN", "Pag-Ibig #", "Status", "Position", "Immediate Supervisor", "Basic Salary", "Rice Subsidy", "Phone Allowance", "Clothing Allowance"
+                "Employee #", "Last Name", "First Name", "Birthday", "Address", "Phone #", "SSS #", "PhilHealth #", "Pag-Ibig #", "TIN", "Status", "Position", "Immediate Supervisor", "Basic Salary", "Rice Subsidy", "Phone Allowance", "Clothing Allowance", "Hourly Rate"
             }
         ) {
             Class[] types = new Class [] {
-                java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class
+                java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.Object.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class, java.lang.String.class
             };
 
             public Class getColumnClass(int columnIndex) {
@@ -331,7 +368,9 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
         if (tblERecords.getColumnModel().getColumnCount() > 0) {
             tblERecords.getColumnModel().getColumn(0).setMinWidth(60);
             tblERecords.getColumnModel().getColumn(0).setPreferredWidth(60);
-            tblERecords.getColumnModel().getColumn(9).setPreferredWidth(60);
+            tblERecords.getColumnModel().getColumn(12).setPreferredWidth(60);
+            tblERecords.getColumnModel().getColumn(13).setMinWidth(80);
+            tblERecords.getColumnModel().getColumn(13).setPreferredWidth(80);
         }
 
         jPanel1.setBackground(new java.awt.Color(102, 102, 102));
@@ -348,7 +387,7 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
 
         jLabel14.setFont(new java.awt.Font("Segoe UI", 1, 24)); // NOI18N
         jLabel14.setForeground(new java.awt.Color(255, 255, 255));
-        jLabel14.setText("EMPLOYEE DETAILS (ACC VIEW)");
+        jLabel14.setText("EMPLOYEE DETAILS (ACCOUNTING VIEW)");
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
@@ -357,9 +396,9 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addGap(25, 25, 25)
                 .addComponent(backbuttondetailsPB, javax.swing.GroupLayout.PREFERRED_SIZE, 93, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(341, 341, 341)
-                .addComponent(jLabel14, javax.swing.GroupLayout.PREFERRED_SIZE, 373, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addComponent(jLabel14, javax.swing.GroupLayout.PREFERRED_SIZE, 489, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(297, 297, 297))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -421,6 +460,41 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
             }
         });
 
+        TFstatus.setBackground(new java.awt.Color(255, 255, 255));
+        TFstatus.setEditable(true);
+        TFstatus.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Select", "Regular", "Probationary" }));
+        TFstatus.setToolTipText("");
+
+        TFhourlyrate.setHorizontalAlignment(javax.swing.JTextField.LEFT);
+        TFhourlyrate.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                TFhourlyrateActionPerformed(evt);
+            }
+        });
+
+        lbhourlyrate.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        lbhourlyrate.setText("Hourly Rate");
+
+        jLabel6.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        jLabel6.setText("Birthday:");
+
+        jLabel7.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        jLabel7.setText("Address:");
+
+        LBLphonenum.setFont(new java.awt.Font("Segoe UI", 1, 14)); // NOI18N
+        LBLphonenum.setText("Phone Number:");
+
+        TFphonenum.setHorizontalAlignment(javax.swing.JTextField.LEFT);
+        TFphonenum.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                TFphonenumActionPerformed(evt);
+            }
+        });
+
+        TFAddress.setColumns(20);
+        TFAddress.setRows(5);
+        jScrollPane3.setViewportView(TFAddress);
+
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
@@ -430,127 +504,199 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
                 .addGap(25, 25, 25)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(layout.createSequentialGroup()
-                        .addComponent(jScrollPane1)
-                        .addGap(16, 16, 16))
-                    .addGroup(layout.createSequentialGroup()
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                            .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                .addComponent(jLabel10)
-                                .addComponent(TFphilh, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                .addComponent(TFenum, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                .addComponent(jLabel3)
-                                .addComponent(btnSearch1, javax.swing.GroupLayout.PREFERRED_SIZE, 201, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addComponent(TFpos, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE))
-                        .addGap(50, 50, 50)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                .addComponent(TFlastn, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                    .addComponent(TFtin, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addComponent(jLabel11)
-                                    .addComponent(TFsupervisor, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addComponent(jLabel16)
-                                    .addComponent(TFclothingallow, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addComponent(lblclothingallow)))
-                            .addComponent(jLabel4))
-                        .addGap(50, 50, 50)
+                            .addGroup(layout.createSequentialGroup()
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addGroup(layout.createSequentialGroup()
+                                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                                    .addGroup(layout.createSequentialGroup()
+                                                        .addComponent(lblphoneallow, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                        .addGap(65, 65, 65))
+                                                    .addGroup(layout.createSequentialGroup()
+                                                        .addComponent(jLabel15, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                        .addGap(128, 128, 128))
+                                                    .addComponent(TFphoneallow)
+                                                    .addComponent(TFphilh)
+                                                    .addGroup(layout.createSequentialGroup()
+                                                        .addComponent(jLabel10, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                        .addGap(49, 49, 49)))
+                                                .addGap(47, 47, 47)
+                                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                                    .addGroup(layout.createSequentialGroup()
+                                                        .addComponent(jLabel11, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                        .addGap(155, 155, 155))
+                                                    .addGroup(layout.createSequentialGroup()
+                                                        .addComponent(jLabel16, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                        .addGap(31, 31, 31))
+                                                    .addGroup(layout.createSequentialGroup()
+                                                        .addComponent(lblclothingallow, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                        .addGap(52, 52, 52))
+                                                    .addComponent(TFsupervisor)
+                                                    .addComponent(TFtin)
+                                                    .addComponent(TFclothingallow, javax.swing.GroupLayout.Alignment.TRAILING)))
+                                            .addGroup(layout.createSequentialGroup()
+                                                .addComponent(TFpos)
+                                                .addGap(231, 231, 231)))
+                                        .addGap(43, 43, 43)
+                                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addGroup(layout.createSequentialGroup()
+                                                .addComponent(lblbasicsalary, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                .addGap(103, 103, 103))
+                                            .addGroup(layout.createSequentialGroup()
+                                                .addComponent(lblricesubsidy, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                .addGap(98, 98, 98))
+                                            .addComponent(TFbasicsalary)
+                                            .addComponent(TFpagibig)
+                                            .addComponent(TFricesub)
+                                            .addGroup(layout.createSequentialGroup()
+                                                .addComponent(jLabel12, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                .addGap(62, 62, 62))))
+                                    .addGroup(layout.createSequentialGroup()
+                                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addComponent(TFenum)
+                                            .addGroup(layout.createSequentialGroup()
+                                                .addComponent(jLabel3, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                .addGap(53, 53, 53)))
+                                        .addGap(47, 47, 47)
+                                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addGroup(layout.createSequentialGroup()
+                                                .addComponent(jLabel4, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                .addGap(109, 109, 109))
+                                            .addComponent(TFlastn))
+                                        .addGap(43, 43, 43)
+                                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                            .addGroup(layout.createSequentialGroup()
+                                                .addComponent(jLabel5, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                .addGap(107, 107, 107))
+                                            .addComponent(TFfirstn))))
+                                .addGap(46, 46, 46))
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(btnSearch1, javax.swing.GroupLayout.PREFERRED_SIZE, 201, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                                .addComponent(TFfirstn, javax.swing.GroupLayout.DEFAULT_SIZE, 250, Short.MAX_VALUE)
-                                .addComponent(jLabel12)
-                                .addComponent(TFpagibig))
-                            .addComponent(TFbasicsalary, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(lblbasicsalary)
-                            .addComponent(jLabel5))
-                        .addGap(40, 40, 40)
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jLabel9, javax.swing.GroupLayout.DEFAULT_SIZE, 89, Short.MAX_VALUE)
+                                .addGap(96, 96, 96))
+                            .addComponent(TFhourlyrate)
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(lbhourlyrate, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addGap(101, 101, 101))
+                            .addComponent(TFsss)
+                            .addComponent(TFstatus, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jLabel13, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addGap(137, 137, 137))
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jLabel6, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addGap(121, 121, 121))
+                            .addComponent(jDateChooserBday, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                        .addGap(47, 47, 47)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(TFricesub, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(lblricesubsidy)
-                            .addComponent(jLabel13)
-                            .addComponent(TFstatus, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(jLabel9)
-                            .addComponent(TFsss, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE))
-                        .addContainerGap(24, Short.MAX_VALUE))
-                    .addGroup(layout.createSequentialGroup()
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(TFphoneallow, javax.swing.GroupLayout.PREFERRED_SIZE, 250, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(lblphoneallow)
-                            .addComponent(jLabel15))
-                        .addGap(0, 0, Short.MAX_VALUE))))
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jLabel7, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addGap(180, 180, 180))
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(LBLphonenum, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addGap(132, 132, 132))
+                            .addGroup(layout.createSequentialGroup()
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                                    .addComponent(TFphonenum)
+                                    .addComponent(jScrollPane3))
+                                .addGap(0, 0, Short.MAX_VALUE))))
+                    .addComponent(jScrollPane1))
+                .addGap(23, 23, 23))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
                 .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                        .addComponent(jLabel5)
-                        .addComponent(jLabel9))
-                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                        .addComponent(jLabel3)
-                        .addComponent(jLabel4)))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                        .addComponent(TFlastn)
-                        .addComponent(TFenum)
-                        .addComponent(TFfirstn))
-                    .addComponent(TFsss, javax.swing.GroupLayout.Alignment.TRAILING, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(layout.createSequentialGroup()
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 30, Short.MAX_VALUE)
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                            .addComponent(jLabel11, javax.swing.GroupLayout.Alignment.LEADING)
-                            .addGroup(layout.createSequentialGroup()
-                                .addComponent(jLabel10)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                .addComponent(TFphilh, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE))
-                            .addGroup(layout.createSequentialGroup()
-                                .addComponent(jLabel13)
-                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                .addComponent(TFstatus, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE))))
-                    .addGroup(layout.createSequentialGroup()
-                        .addGap(20, 20, 20)
-                        .addComponent(jLabel12)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                            .addComponent(TFtin, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(TFpagibig, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE))))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(layout.createSequentialGroup()
+                        .addGap(98, 98, 98)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jLabel15)
-                            .addComponent(jLabel16))
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addGroup(layout.createSequentialGroup()
+                                .addComponent(jLabel10, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(TFphilh)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(jLabel15, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(TFpos)
+                                .addGap(14, 14, 14)
+                                .addComponent(lblphoneallow, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(TFphoneallow))
+                            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                    .addGroup(layout.createSequentialGroup()
+                                        .addComponent(jLabel11, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                        .addGap(36, 36, 36))
+                                    .addGroup(layout.createSequentialGroup()
+                                        .addGap(24, 24, 24)
+                                        .addComponent(TFtin)))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                .addComponent(jLabel16, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(TFsupervisor)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(lblclothingallow, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addGap(10, 10, 10)
+                                .addComponent(TFclothingallow))
+                            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                                .addGap(2, 2, 2)
+                                .addComponent(jLabel12, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(TFpagibig)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                .addComponent(lblbasicsalary, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(TFbasicsalary)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(lblricesubsidy, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(TFricesub))))
+                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, layout.createSequentialGroup()
+                        .addGap(27, 27, 27)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                            .addComponent(TFpos, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(TFsupervisor, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                    .addGroup(layout.createSequentialGroup()
-                        .addComponent(lblbasicsalary)
+                            .addComponent(jLabel4, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(jLabel5, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(jLabel6, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(jLabel7, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(jLabel3, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(TFbasicsalary, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(layout.createSequentialGroup()
-                        .addComponent(lblricesubsidy)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(layout.createSequentialGroup()
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                                    .addComponent(TFfirstn)
+                                    .addComponent(jDateChooserBday, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                    .addComponent(TFlastn)
+                                    .addGroup(layout.createSequentialGroup()
+                                        .addGap(0, 0, Short.MAX_VALUE)
+                                        .addComponent(TFenum, javax.swing.GroupLayout.PREFERRED_SIZE, 31, javax.swing.GroupLayout.PREFERRED_SIZE)))
+                                .addGap(18, 18, 18)
+                                .addComponent(jLabel13, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addGap(4, 4, 4)
+                                .addComponent(TFstatus, javax.swing.GroupLayout.PREFERRED_SIZE, 30, javax.swing.GroupLayout.PREFERRED_SIZE))
+                            .addComponent(jScrollPane3))
+                        .addGap(18, 18, 18)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jLabel9, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addComponent(LBLphonenum, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(TFricesub, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(layout.createSequentialGroup()
-                        .addComponent(lblphoneallow)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(TFsss)
+                            .addComponent(TFphonenum))
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(TFphoneallow, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(layout.createSequentialGroup()
-                        .addComponent(lblclothingallow)
+                        .addComponent(lbhourlyrate, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(TFclothingallow, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE)))
-                .addGap(44, 44, 44)
+                        .addComponent(TFhourlyrate)))
+                .addGap(32, 32, 32)
                 .addComponent(btnSearch1)
-                .addGap(18, 18, 18)
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 236, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap())
+                .addGap(39, 39, 39)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 234, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(26, 26, 26))
         );
 
         pack();
@@ -593,18 +739,14 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
         // TODO add your handling code here:
     }//GEN-LAST:event_TFphilhActionPerformed
 
-    private void TFstatusActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_TFstatusActionPerformed
-        // TODO add your handling code here:
-    }//GEN-LAST:event_TFstatusActionPerformed
-
     private void backbuttondetailsPBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_backbuttondetailsPBActionPerformed
-        // Create an instance of Accounting Portal Page
-        AccountingPortal accountingPage = new AccountingPortal(fullName, employeeID, userRole);
-        // Center the Accounting Portal Page
-        accountingPage.setLocationRelativeTo(null);
-        // Make the Accounting Portal visible
-        accountingPage.setVisible(true);
-        // Close the current Employee Details Acc Page
+        // Redirect to HR/Manager Portal
+        HRManagerPortal hrmanagerPage = new HRManagerPortal(fullName, employeeID, userRole);
+        // Center the HRManager Portal
+        hrmanagerPage.setLocationRelativeTo(null);
+        // Make the HRManager Portal visible
+        hrmanagerPage.setVisible(true);
+        // Close the current Attendance Page
         this.dispose();
     }//GEN-LAST:event_backbuttondetailsPBActionPerformed
 
@@ -646,6 +788,14 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
         // TODO add your handling code here:
     }//GEN-LAST:event_TFclothingallowActionPerformed
 
+    private void TFhourlyrateActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_TFhourlyrateActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_TFhourlyrateActionPerformed
+
+    private void TFphonenumActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_TFphonenumActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_TFphonenumActionPerformed
+
     /**
      * @param args the command line arguments
      */
@@ -681,6 +831,22 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
         //</editor-fold>
         //</editor-fold>
         //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
+        //</editor-fold>
         
         //</editor-fold>
 
@@ -691,22 +857,27 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JLabel LBLphonenum;
+    private javax.swing.JTextArea TFAddress;
     private javax.swing.JTextField TFbasicsalary;
     private javax.swing.JTextField TFclothingallow;
     private javax.swing.JTextField TFenum;
     private javax.swing.JTextField TFfirstn;
+    private javax.swing.JTextField TFhourlyrate;
     private javax.swing.JTextField TFlastn;
     private javax.swing.JTextField TFpagibig;
     private javax.swing.JTextField TFphilh;
     private javax.swing.JTextField TFphoneallow;
+    private javax.swing.JTextField TFphonenum;
     private javax.swing.JTextField TFpos;
     private javax.swing.JTextField TFricesub;
     private javax.swing.JTextField TFsss;
-    private javax.swing.JTextField TFstatus;
+    private javax.swing.JComboBox<String> TFstatus;
     private javax.swing.JTextField TFsupervisor;
     private javax.swing.JTextField TFtin;
     private javax.swing.JButton backbuttondetailsPB;
     private javax.swing.JButton btnSearch1;
+    private com.toedter.calendar.JDateChooser jDateChooserBday;
     private javax.swing.JLabel jLabel10;
     private javax.swing.JLabel jLabel11;
     private javax.swing.JLabel jLabel12;
@@ -717,9 +888,13 @@ public class EmployeeDetailsACC extends javax.swing.JFrame {
     private javax.swing.JLabel jLabel3;
     private javax.swing.JLabel jLabel4;
     private javax.swing.JLabel jLabel5;
+    private javax.swing.JLabel jLabel6;
+    private javax.swing.JLabel jLabel7;
     private javax.swing.JLabel jLabel9;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JScrollPane jScrollPane3;
+    private javax.swing.JLabel lbhourlyrate;
     private javax.swing.JLabel lblbasicsalary;
     private javax.swing.JLabel lblclothingallow;
     private javax.swing.JLabel lblphoneallow;

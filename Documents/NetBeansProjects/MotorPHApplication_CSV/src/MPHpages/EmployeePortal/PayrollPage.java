@@ -1,5 +1,6 @@
 /*
 NEW UPDATES:
+- Changed employee data csv to : MotorPH Employee Data UP.csv
 - Preview of payslip
 - Download feature for the payslip
 - Default file name set
@@ -8,9 +9,11 @@ NEW UPDATES:
 */
 package MPHpages.EmployeePortal;
 
+import com.itextpdf.text.BadElementException;
 import com.itextpdf.text.Document;
 import com.itextpdf.text.DocumentException;
 import com.itextpdf.text.FontFactory;
+import com.itextpdf.text.Image;
 import com.itextpdf.text.Paragraph;
 import com.itextpdf.text.pdf.PdfWriter;
 import java.awt.Font;
@@ -20,6 +23,8 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 
@@ -52,7 +57,7 @@ public class PayrollPage extends javax.swing.JFrame {
     
     private static class EmployeeDetailsFetcher {
 
-        private static final String CSV_FILE_PATH = "src/CSV/MotorPH Employees 2.csv";
+        private static final String CSV_FILE_PATH = "src/CSV/MotorPH Employee Data UP.csv";
         private static final String CSV_SEPARATOR = ",";
 
         public static String[] fetchEmployeeDetails(String employeeID) throws IOException {
@@ -395,9 +400,9 @@ public class PayrollPage extends javax.swing.JFrame {
             if (parts.length > 0 && parts[0].equals(employeeID) && parts[11].equals(month) && parts[12].equals(year)) {
                 // Format the payslip information for display
                 return String.format(
-                    "========================================================= \n" + 
-                    "   PAYSLIP INFORMATION                         \n" +
-                    "   Company: MotorPH                      \n" +
+                    "========================================================= \n" +
+                    "   MotorPH - Country's Top Motorcycle Online Dealership   \n" +
+                    "   Payslip Information                        \n" +
                     "========================================================= \n" +  
                     "\n" + 
                     "\n" + 
@@ -434,29 +439,47 @@ public class PayrollPage extends javax.swing.JFrame {
     
     
     private void downloadpayslipAsPDF(String payslipData, String fileName) throws DocumentException, FileNotFoundException {
-    Document document = new Document();
-    PdfWriter.getInstance(document, new FileOutputStream(fileName));
-    document.open();
-
-    // Get the font from the payrollareaTA
-    Font textAreaFont = payrollareaTA.getFont();
-
-    // Define fonts using the text area font
-    com.itextpdf.text.Font boldFont = FontFactory.getFont(textAreaFont.getFontName(), textAreaFont.getSize() + 8, Font.BOLD);
-    com.itextpdf.text.Font plainFont = FontFactory.getFont(textAreaFont.getFontName(), textAreaFont.getSize());
-
-    // Split the data into lines
-    String[] lines = payslipData.split("\n");
-
-    // The rest of the lines with plain font
-    for (String line : lines) {
-        document.add(new Paragraph(line, plainFont));
-    }
-
-    document.close();
-
-    // Show a message dialog to the user
-    JOptionPane.showMessageDialog(this, "Payslip PDF saved successfully: " + fileName, "Payslip Saved", JOptionPane.INFORMATION_MESSAGE);
+        try {
+            Document document = new Document();
+            PdfWriter.getInstance(document, new FileOutputStream(fileName));
+            document.open();
+            
+            // Load the image
+            String imagePath = "src/media/MPH LOGO 200 X 112.png";  // Update the path to where your image is located
+            Image logo = Image.getInstance(imagePath);
+            logo.scaleToFit(100, 100); // Scale the image to fit
+            logo.setAlignment(Image.ALIGN_CENTER); // Center the image
+            
+            // Add the image to the document
+            document.add(logo);
+            
+            // Add some space after the image
+            document.add(new Paragraph("\n\n"));
+            
+            // Get the font from the payrollareaTA
+            Font textAreaFont = payrollareaTA.getFont();
+            
+            // Define fonts using the text area font
+            com.itextpdf.text.Font boldFont = FontFactory.getFont(textAreaFont.getFontName(), textAreaFont.getSize() + 8, Font.BOLD);
+            com.itextpdf.text.Font plainFont = FontFactory.getFont(textAreaFont.getFontName(), textAreaFont.getSize());
+            
+            // Split the data into lines
+            String[] lines = payslipData.split("\n");
+            
+            // The rest of the lines with plain font
+            for (String line : lines) {
+                document.add(new Paragraph(line, plainFont));
+            }
+            
+            document.close();
+            
+            // Show a message dialog to the user
+            JOptionPane.showMessageDialog(this, "Payslip PDF saved successfully: " + fileName, "Payslip Saved", JOptionPane.INFORMATION_MESSAGE);
+        } catch (BadElementException ex) {
+            Logger.getLogger(PayrollPage.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(PayrollPage.class.getName()).log(Level.SEVERE, null, ex);
+        }
 }
     
     /**
