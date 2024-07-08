@@ -22,8 +22,8 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -195,8 +195,9 @@ public class EmpRequestLeavePage extends javax.swing.JFrame {
     }
     return row;
 }
-   // This method check if it's the first leave request for the year
-private boolean isFirstLeaveRequestForYear(String empID, int year) {
+   
+   // Method to check if it's the first leave request for the year
+   private boolean isFirstLeaveRequestForYear(String empID, int year) {
     try {
         File file = new File("src/CSV/Leave Requests DB.csv");
         try (CSVReader reader = new CSVReader(new FileReader(file))) {
@@ -219,22 +220,38 @@ private boolean isFirstLeaveRequestForYear(String empID, int year) {
     return true; // No leave requests found for this year
 }
 
+
 // Method to calculate remaining leave balances based on the most recent leave request
 private int[] calculateRemainingLeaves(String empID, int year) {
     int[] remainingLeaves = new int[2]; // Index 0: Vacation Leaves, Index 1: Sick Leaves
-    String[] mostRecentRequest = getMostRecentLeaveRequest(empID, year);
 
-    if (mostRecentRequest != null) {
-        remainingLeaves[0] = Integer.parseInt(mostRecentRequest[12]); // Remaining Vacation Leaves
-        remainingLeaves[1] = Integer.parseInt(mostRecentRequest[13]); // Remaining Sick Leaves
-    } else {
-        // If no previous requests found for the year, set default values
-        remainingLeaves[0] = userRole.equals("Regular") ? 20 : 17; // Default Vacation Leaves
+    // Check if it's the first leave request for the year
+    if (isFirstLeaveRequestForYear(empID, year)) {
+        // Get the employee's status
+        String status = empstatusTF.getText().trim();
+        
+        // Initialize default leave counts based on status
+        remainingLeaves[0] = status.equalsIgnoreCase("Regular") ? 20 : 17; // Default Vacation Leaves
         remainingLeaves[1] = 10; // Default Sick Leaves
+    } else {
+        // Get remaining leaves from the most recent leave request in the same year
+        String[] mostRecentRequest = getMostRecentLeaveRequest(empID, year);
+
+        if (mostRecentRequest != null) {
+            remainingLeaves[0] = Integer.parseInt(mostRecentRequest[12]); // Remaining Vacation Leaves
+            remainingLeaves[1] = Integer.parseInt(mostRecentRequest[13]); // Remaining Sick Leaves
+        } else {
+            // Handle case if no previous request found (though theoretically, it should not happen if isFirstLeaveRequestForYear returns false)
+            String status = empstatusTF.getText().trim();
+            remainingLeaves[0] = status.equalsIgnoreCase("Regular") ? 20 : 17; // Default Vacation Leaves
+            remainingLeaves[1] = 10; // Default Sick Leaves
+        }
     }
 
     return remainingLeaves;
 }
+
+
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -685,10 +702,10 @@ private int[] calculateRemainingLeaves(String empID, int year) {
     private void rlfirstnameTFActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_rlfirstnameTFActionPerformed
         // TODO add your handling code here:
     }//GEN-LAST:event_rlfirstnameTFActionPerformed
-
+    
     private void submitleavePBActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_submitleavePBActionPerformed
-        // Capture and format the dates from the form fields
-    Date submissionDateObj = dateofsubmissionDC.getDate();
+       // Capture and format the dates from the form fields
+           Date submissionDateObj = dateofsubmissionDC.getDate();
     Calendar cal = Calendar.getInstance();
     cal.setTime(submissionDateObj);
     int year = cal.get(Calendar.YEAR);
@@ -709,15 +726,11 @@ private int[] calculateRemainingLeaves(String empID, int year) {
     Date endDateObj = endofleaveDC.getDate();
     String endDate = endDateObj != null ? dateFormat.format(endDateObj) : "";
 
-    // Validate date selection
-    if (startDateObj == null || endDateObj == null) {
-        JOptionPane.showMessageDialog(this, "Please select both start and end dates.", "Date Error", JOptionPane.ERROR_MESSAGE);
-        return;
-    }
-
-    // Ensure all required fields are filled
-    if (empID.isEmpty() || firstName.isEmpty() || lastName.isEmpty() || position.isEmpty() ||
-            supervisor.isEmpty() || leaveType.equals("Select") || startDate.isEmpty() || endDate.isEmpty()) {
+    // Validate date selection and other required fields
+    if (startDateObj == null || endDateObj == null ||
+            empID.isEmpty() || firstName.isEmpty() || lastName.isEmpty() ||
+            position.isEmpty() || supervisor.isEmpty() ||
+            leaveType.equals("Select") || startDate.isEmpty() || endDate.isEmpty()) {
         JOptionPane.showMessageDialog(this, "Please fill in all required fields.", "Input Error", JOptionPane.ERROR_MESSAGE);
         return;
     }
@@ -735,22 +748,16 @@ private int[] calculateRemainingLeaves(String empID, int year) {
         return;
     }
 
-    // Check if the most recent leave request for the same year is still pending
-    String[] mostRecentRequest = getMostRecentLeaveRequest(empID, year);
-    if (mostRecentRequest != null && mostRecentRequest[11].trim().equals("Pending")) {
-        JOptionPane.showMessageDialog(this, "You cannot submit another leave request while there is a pending request for the same year.", "Pending Request", JOptionPane.ERROR_MESSAGE);
-        return;
-    }
-
-     // Calculate the duration of the leave in days
-    long leaveDuration = ChronoUnit.DAYS.between(startDateObj.toInstant().atZone(ZoneId.systemDefault()).toLocalDate(),
+    // Calculate the duration of the leave in days
+    long leaveDuration = ChronoUnit.DAYS.between(
+            startDateObj.toInstant().atZone(ZoneId.systemDefault()).toLocalDate(),
             endDateObj.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()) + 1;
 
-    // Calculate remaining leaves without deductions
+    // Get remaining leaves based on the most recent leave request in the same year
     int[] remainingLeaves = calculateRemainingLeaves(empID, year);
-    
-    // Validate if the leave can be submitted based on remaining credits and leave duration
-    if (!canSubmitLeave(empID, leaveType, leaveDuration, status, year)) {
+
+    // Check if the leave can be submitted based on remaining balances
+    if (!canSubmitLeave(leaveType, leaveDuration, remainingLeaves[0], remainingLeaves[1])) {
         return;
     }
 
@@ -762,31 +769,13 @@ private int[] calculateRemainingLeaves(String empID, int year) {
     leaveType = formatFieldWithQuotes(leaveType);
     note = formatFieldWithQuotes(note);
 
-    // Calculate new remaining leave balances
-    int remainingVacationLeaves = getRemainingLeaves(empID, "Vacation", status, year);
-    int remainingSickLeaves = getRemainingLeaves(empID, "Sick", status, year);
-
-    // Check if it's the first leave request of the year for the employee
-    if (isFirstLeaveRequestOfYear(empID, year)) {
-        // Set initial leave counts without deduction if it's the first leave request of the year
-        remainingVacationLeaves = status.equals("Regular") ? 20 : 17; // Set default vacation leaves
-        remainingSickLeaves = 10; // Set default sick leaves
-    } else {
-        // Deduct leave duration from remaining balances
-        if (leaveType.equals("Vacation Leave")) {
-            remainingVacationLeaves -= leaveDuration;
-        } else if (leaveType.equals("Sick Leave")) {
-            remainingSickLeaves -= leaveDuration;
-        }
-    }
-
     // Write the leave request to the CSV file
     try (FileWriter fileWriter = new FileWriter("src/CSV/Leave Requests DB.csv", true);
-         BufferedWriter writer = new BufferedWriter(fileWriter)) {
+            BufferedWriter writer = new BufferedWriter(fileWriter)) {
 
         // Write the leave request to the CSV file with remaining leaves
         writer.write(String.join(",", dateFormat.format(submissionDateObj), empID, firstName, lastName, position, status, supervisor,
-                leaveType, note, startDate, endDate, "Pending", String.valueOf(remainingLeaves[0]), String.valueOf(remainingLeaves[1])) + "\n");
+        leaveType, note, startDate, endDate, "Pending", String.valueOf(remainingLeaves[0]), String.valueOf(remainingLeaves[1])) + "\n");
         writer.flush();
 
         // Update the table to reflect the new leave request and clear input fields
@@ -799,50 +788,71 @@ private int[] calculateRemainingLeaves(String empID, int year) {
         e.printStackTrace();
     }
 }
+                    
 
-// Method to get the most recent leave request for an employee in the same year
-private String[] getMostRecentLeaveRequest(String empID, int year) {
-    String[] mostRecentRequest = null;
-
-    try {
-        File file = new File("src/CSV/Leave Requests DB.csv");
-        try (CSVReader reader = new CSVReader(new FileReader(file))) {
-            reader.readNext(); // Skip header row
-            String[] line;
-            while ((line = reader.readNext()) != null) {
-                if (line.length >= 14 && line[1].trim().equals(empID)) {
-                    Date leaveDate = dateFormat.parse(line[0]); // Date of submission
-                    Calendar cal = Calendar.getInstance();
-                    cal.setTime(leaveDate);
-                    if (cal.get(Calendar.YEAR) == year) {
-                        mostRecentRequest = line;
-                    }
+        // This method checks if a leave can be submitted based on remaining leave balances and duration
+        private boolean canSubmitLeave(String leaveType, long leaveDuration, int remainingVacationLeaves, int remainingSickLeaves) {
+            if (leaveType.equals("Vacation Leave")) {
+                if (remainingVacationLeaves < leaveDuration) {
+                    JOptionPane.showMessageDialog(this,
+                            "Cannot submit Vacation Leave request as it exceeds your remaining leave credits (" + remainingVacationLeaves + " days).",
+                            "Leave Error", JOptionPane.ERROR_MESSAGE);
+                    return false;
+                }
+            } else if (leaveType.equals("Sick Leave")) {
+                if (remainingSickLeaves < leaveDuration) {
+                    JOptionPane.showMessageDialog(this,
+                            "Cannot submit Sick Leave request as it exceeds your remaining leave credits (" + remainingSickLeaves + " days).",
+                            "Leave Error", JOptionPane.ERROR_MESSAGE);
+                    return false;
                 }
             }
+            return true;
         }
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
 
-    return mostRecentRequest;
-}
+        // Method to get the most recent leave request for an employee in the same year
+        private String[] getMostRecentLeaveRequest(String empID, int year) {
+            String[] mostRecentRequest = null;
 
-// This method retrieves the remaining leave balances for an employee
-private int getRemainingLeaves(String empID, String leaveType, String status, int year) {
-     int remainingLeaves = 0;
+            try {
+                File file = new File("src/CSV/Leave Requests DB.csv");
+                try (CSVReader reader = new CSVReader(new FileReader(file))) {
+                    reader.readNext(); // Skip header row
+                    String[] line;
+                    while ((line = reader.readNext()) != null) {
+                        if (line.length >= 14 && line[1].trim().equals(empID)) {
+                            Date leaveDate = dateFormat.parse(line[0]); // Date of submission
+                            Calendar cal = Calendar.getInstance();
+                            cal.setTime(leaveDate);
+                            if (cal.get(Calendar.YEAR) == year) {
+                                mostRecentRequest = line;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            return mostRecentRequest;
+        }
+
+        // This method retrieves the remaining leave balances for an employee
+        private int getRemainingLeaves(String empID, String leaveType, String status, int year) {
+    int remainingLeaves = 0;
     int defaultVacationLeaves = status.equals("Regular") ? 20 : 17;
     int defaultSickLeaves = 10;
 
     // Check if it's the first leave request of the year for the employee
-    if (isFirstLeaveRequestOfYear(empID, year)) {
-        return leaveType.equals("Vacation") ? defaultVacationLeaves : defaultSickLeaves;
+    if (isFirstLeaveRequestForYear(empID, year)) {
+        return leaveType.equals("Vacation Leave") ? defaultVacationLeaves : defaultSickLeaves;
     }
 
     // Read the Leave Requests DB to find the most recent leave balance
     try {
         File file = new File("src/CSV/Leave Requests DB.csv");
         try (CSVReader reader = new CSVReader(new FileReader(file))) {
-            reader.readNext(); // Skip header
+            String[] header = reader.readNext(); // Read and discard header
             String[] line;
             String[] mostRecentEntry = null;
             while ((line = reader.readNext()) != null) {
@@ -856,113 +866,90 @@ private int getRemainingLeaves(String empID, String leaveType, String status, in
                 }
             }
             if (mostRecentEntry != null) {
-                remainingLeaves = leaveType.equals("Vacation") ?
-                    Integer.parseInt(mostRecentEntry[12]) :
-                    Integer.parseInt(mostRecentEntry[13]);
+                remainingLeaves = leaveType.equals("Vacation Leave") ?
+                        Integer.parseInt(mostRecentEntry[12]) :
+                        Integer.parseInt(mostRecentEntry[13]);
+            } else {
+                // If no entries found for this year, return default values
+                return leaveType.equals("Vacation Leave") ? defaultVacationLeaves : defaultSickLeaves;
             }
         }
-    } catch (Exception e) {
-        e.printStackTrace();
+    } catch (IOException | NumberFormatException | ArrayIndexOutOfBoundsException | ParseException e) {
+        e.printStackTrace(); // Improve error handling by logging or displaying a message
+        // Return default values in case of error
+        return leaveType.equals("Vacation Leave") ? defaultVacationLeaves : defaultSickLeaves;
     }
 
     return remainingLeaves;
 }
 
-// Method to check if it's the first leave request of the year for an employee
-private boolean isFirstLeaveRequestOfYear(String empID, int year) {
-    boolean isFirstRequest = true;
+        
+        // This method checks if a leave request for the same dates already exists
+        private boolean isDuplicateEntry(String empID, String startDate, String endDate) {
+            boolean isDuplicate = false;
 
-    try {
-        File file = new File("src/CSV/Leave Requests DB.csv");
-        try (CSVReader reader = new CSVReader(new FileReader(file))) {
-            reader.readNext(); // Skip header row
-            String[] line;
-            while ((line = reader.readNext()) != null) {
-                if (line.length >= 14 && line[1].trim().equals(empID)) {
-                    Date leaveDate = dateFormat.parse(line[0]); // Date of submission
-                    Calendar cal = Calendar.getInstance();
-                    cal.setTime(leaveDate);
-                    if (cal.get(Calendar.YEAR) == year) {
-                        isFirstRequest = false;
-                        break;
+            // Read leave requests from the file to check for duplicates
+            try {
+                File file = new File("src/CSV/Leave Requests DB.csv");
+                try (CSVReader reader = new CSVReader(new FileReader(file))) {
+                    reader.readNext(); // Read and discard the header row
+                    String[] line;
+                    while ((line = reader.readNext()) != null) {
+                        if (line.length >= 11 && line[1].trim().equals(empID) && line[9].trim().equals(startDate) && line[10].trim().equals(endDate)) {
+                            isDuplicate = true;
+                            break;
+                        }
                     }
                 }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
+
+            return isDuplicate;
         }
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
 
-    return isFirstRequest;
-}
+        // This method validates if a leave can be submitted based on remaining leave balances and duration
+        private boolean canSubmitLeave(String empID, String leaveType, long leaveDuration, String status, int year) {
+            int remainingLeaves = getRemainingLeaves(empID, leaveType, status, year);
 
-// This method checks if a leave request for the same dates already exists
-private boolean isDuplicateEntry(String empID, String startDate, String endDate) {
-    boolean isDuplicate = false;
-
-    // Read leave requests from the file to check for duplicates
-    try {
-        File file = new File("src/CSV/Leave Requests DB.csv");
-        try (CSVReader reader = new CSVReader(new FileReader(file))) {
-            reader.readNext(); // Read and discard the header row
-            String[] line;
-            while ((line = reader.readNext()) != null) {
-                if (line.length >= 11 && line[1].trim().equals(empID) && line[9].trim().equals(startDate) && line[10].trim().equals(endDate)) {
-                    isDuplicate = true;
-                    break;
-                }
+            if (remainingLeaves < leaveDuration) {
+                JOptionPane.showMessageDialog(this, 
+                    "Cannot submit " + leaveType + " request as it exceeds your remaining leave credits (" + remainingLeaves + " days).", 
+                    "Leave Error", JOptionPane.ERROR_MESSAGE);
+                return false;
             }
+            return true;
         }
-    } catch (IOException e) {
-        e.printStackTrace();
-    }
 
-    return isDuplicate;
-}
+        // This method checks if a string contains a comma to prevent CSV parsing issues
+        private boolean containsComma(String value) {
+            return value.contains(",");
+        }
 
-// This method validates if a leave can be submitted based on remaining leave balances and duration
-private boolean canSubmitLeave(String empID, String leaveType, long leaveDuration, String status, int year) {
-    int remainingLeaves = getRemainingLeaves(empID, leaveType, status, year);
+        // This method formats a field to include quotes if it contains a comma or double quotes
+        private String formatFieldWithQuotes(String field) {
+            if (field.contains("\"")) {
+                field = field.replace("\"", "\"\"");
+            }
+            if (field.contains(",")) {
+                field = "\"" + field + "\"";
+            }
+            return field;
+        }
 
-    if (remainingLeaves < leaveDuration) {
-        JOptionPane.showMessageDialog(this, 
-            "Cannot submit " + leaveType + " request as it exceeds your remaining leave credits (" + remainingLeaves + " days).", 
-            "Leave Error", JOptionPane.ERROR_MESSAGE);
-        return false;
-    }
-    return true;
-}
-
-// This method checks if a string contains a comma to prevent CSV parsing issues
-private boolean containsComma(String value) {
-    return value.contains(",");
-}
-
-// This method formats a field to include quotes if it contains a comma or double quotes
-private String formatFieldWithQuotes(String field) {
-    if (field.contains("\"")) {
-        field = field.replace("\"", "\"\"");
-    }
-    if (field.contains(",")) {
-        field = "\"" + field + "\"";
-    }
-    return field;
-}
-
-// This method clears all the input fields in the form after submission
-private void clearFields() {
-    dateofsubmissionDC.setDate(null);
-    empIDreqTF.setText("");
-    rlfirstnameTF.setText("");
-    rllastnameTF.setText("");
-    rlpositionTF.setText("");
-    empstatusTF.setText("");
-    rlsupervisorTF.setText("");
-    typeofleaveCB.setSelectedIndex(0);
-    noteTA.setText("");
-    startofleaveDC.setDate(null);
-    endofleaveDC.setDate(null);
-        
+        // This method clears all the input fields in the form after submission
+        private void clearFields() {
+            dateofsubmissionDC.setDate(null);
+            empIDreqTF.setText("");
+            rlfirstnameTF.setText("");
+            rllastnameTF.setText("");
+            rlpositionTF.setText("");
+            empstatusTF.setText("");
+            rlsupervisorTF.setText("");
+            typeofleaveCB.setSelectedIndex(0);
+            noteTA.setText("");
+            startofleaveDC.setDate(null);
+            endofleaveDC.setDate(null);        
     }//GEN-LAST:event_submitleavePBActionPerformed
 
     
